@@ -1,12 +1,13 @@
-import os
 import json
+import os
+
+import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score
-import joblib
 
 # Assessment question mapping to career domains:
 # q1, q2, q7, q12 → Technology indicators
@@ -53,8 +54,8 @@ def generate_synthetic(path='data.csv', n=1000):
     return path
 
 
-def train(data_path='data.csv'):
-    """Train a career prediction model from assessment response data.
+def train(data_path='data.csv', model_path='ai_model.pkl', scaler_path='encoder.pkl', features_path='features.json'):
+    """Train and persist the career prediction model artifacts.
 
     The model predicts career path (0=Technology, 1=Finance, 2=Healthcare)
     from 15 assessment question responses (1-5 scale each).
@@ -67,32 +68,37 @@ def train(data_path='data.csv'):
     if 'target' not in df.columns:
         raise ValueError('data must contain a target column')
 
-    X = df.drop(columns=['target']).values
+    X = df.drop(columns=['target'])
     y = df['target'].values
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X.values, y, test_size=0.2, random_state=42
+    )
 
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model = RandomForestClassifier(n_estimators=200, random_state=42)
     model.fit(X_train_scaled, y_train)
 
     y_pred = model.predict(X_test_scaled)
     accuracy = accuracy_score(y_test, y_pred)
+    report = classification_report(y_test, y_pred, zero_division=0)
+
+    joblib.dump(model, model_path)
+    joblib.dump(scaler, scaler_path)
+    with open(features_path, 'w', encoding='utf-8') as f:
+        json.dump(list(X.columns), f)
+
     print(f'Model Accuracy: {accuracy:.2f}')
+    print(f'Classification Report:\n{report}')
+    print(f'Model trained and saved: {model_path}, {scaler_path}, {features_path}')
 
-    # save artifacts
-    joblib.dump(model, 'ai_model.pkl')
-    joblib.dump(scaler, 'encoder.pkl')
-
-    feature_names = list(df.drop(columns=['target']).columns)
-    with open('features.json', 'w') as f:
-        json.dump(feature_names, f)
-
-    print('Model trained and saved: ai_model.pkl, encoder.pkl, features.json')
-    return model, scaler
+    return {
+        'accuracy': float(accuracy),
+        'features': list(X.columns),
+    }
 
 
 if __name__ == '__main__':
