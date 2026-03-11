@@ -61,7 +61,7 @@ def recommend_streams(favorite_subjects=None, interests=None,
     subjects = _normalize(favorite_subjects)
     interest_list = _normalize(interests)
     traits = _normalize(personality_traits)
-    reasoning = logical_reasoning_score if logical_reasoning_score is not None else 50
+    reasoning = logical_reasoning_score if logical_reasoning_score is not None else 50  # default: average ability
 
     results = []
     for stream, profile in STREAM_PROFILES.items():

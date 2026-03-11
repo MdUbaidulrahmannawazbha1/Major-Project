@@ -143,7 +143,7 @@ def predict_career_twins(skills=None, interests=None, education_level=None,
             if assessment_bonus > 2:
                 reasons.append(f"Assessment alignment: +{assessment_bonus:.0f}%")
 
-        probability = min(max(int(probability), 0), 99)
+        probability = min(max(int(probability), 0), 99)  # cap at 99 – no single prediction is absolute
 
         results.append({
             'career': career,

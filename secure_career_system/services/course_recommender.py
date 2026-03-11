@@ -134,7 +134,7 @@ def recommend_courses(stream=None, subjects=None, interests=None,
     int_list = _normalize(interests)
     skill_list = _normalize(skills)
     combined_interests = int_list + skill_list
-    marks_val = marks if marks is not None else 60
+    marks_val = marks if marks is not None else 60  # default: assume average marks
 
     results = []
     for entry in COURSE_DATABASE:
