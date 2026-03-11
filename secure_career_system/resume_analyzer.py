@@ -8,13 +8,16 @@ try:
     from nltk.corpus import stopwords
 
     # Ensure required NLTK data is available
-    for resource in ('punkt_tab', 'stopwords', 'averaged_perceptron_tagger_eng'):
+    _NLTK_RESOURCES = {
+        'punkt_tab': 'tokenizers/punkt_tab',
+        'stopwords': 'corpora/stopwords',
+        'averaged_perceptron_tagger_eng': 'taggers/averaged_perceptron_tagger_eng',
+    }
+    for name, path in _NLTK_RESOURCES.items():
         try:
-            nltk.data.find(f'tokenizers/{resource}' if 'punkt' in resource
-                           else f'corpora/{resource}' if 'stop' in resource
-                           else f'taggers/{resource}')
+            nltk.data.find(path)
         except LookupError:
-            nltk.download(resource, quiet=True)
+            nltk.download(name, quiet=True)
     _NLTK_AVAILABLE = True
 except Exception:
     _NLTK_AVAILABLE = False
@@ -109,7 +112,7 @@ def extract_text_from_pdf(path: str) -> str:
     return "\n".join(text)
 
 
-def extract_contact_info(text: str) -> Dict[str, list]:
+def extract_contact_info(text: str) -> Dict[str, List[str]]:
     """Extract email addresses and phone numbers from text."""
     email_re = r'[\w\.-]+@[\w\.-]+'
     phone_re = r'(?:\+\d{1,3}[- ]?)?\d{10,13}'

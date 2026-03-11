@@ -150,6 +150,11 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2 MB
 ALLOWED_EXTENSIONS = {'pdf'}
 
+# Placement feature normalisation limits (must match placement_train.py)
+PLACEMENT_MAX_SKILLS = 10
+PLACEMENT_MAX_PROJECTS = 5
+PLACEMENT_MAX_INTERNSHIPS = 3
+
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -904,9 +909,9 @@ def ai_placement_predict_api():
 
     # Normalise inputs to match training data scale
     cgpa_norm = min(max(cgpa / 10.0, 0.0), 1.0)
-    skills_norm = min(num_skills / 10.0, 1.0)
-    projects_norm = min(num_projects / 5.0, 1.0)
-    internships_norm = min(num_internships / 3.0, 1.0)
+    skills_norm = min(num_skills / PLACEMENT_MAX_SKILLS, 1.0)
+    projects_norm = min(num_projects / PLACEMENT_MAX_PROJECTS, 1.0)
+    internships_norm = min(num_internships / PLACEMENT_MAX_INTERNSHIPS, 1.0)
 
     # Use latest assessment score if available, else estimate from CGPA
     latest_assessment = Assessment.query.filter_by(
