@@ -21,6 +21,12 @@ class User(UserMixin, db.Model):
     last_failed_at = db.Column(db.DateTime)
     points = db.Column(db.Integer, default=0)
     badges = db.Column(db.Text)
+    # Universal career navigation fields
+    education_level = db.Column(db.String(50))   # School, PUC, Undergraduate, Postgraduate, PhD, Professional
+    career_goal = db.Column(db.String(100))
+    interests = db.Column(db.Text)
+    skills = db.Column(db.Text)
+    experience_level = db.Column(db.String(50))
 
     def set_password(self, password: str):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')

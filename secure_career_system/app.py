@@ -28,6 +28,12 @@ from secure_career_system.models import (
 from werkzeug.utils import secure_filename
 from flask_talisman import Talisman
 from secure_career_system.resume_analyzer import analyze_resume
+from secure_career_system.resume_analyzer import (
+    analyze_skill_gaps_by_stage,
+    generate_resume_draft,
+    generate_linkedin_suggestions,
+    generate_portfolio_recommendations,
+)
 try:
     import shap
 except Exception:
@@ -49,6 +55,15 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
 
 from secure_career_system import ai_service
+from secure_career_system.services.stream_recommender import recommend_streams
+from secure_career_system.services.course_recommender import recommend_courses
+from secure_career_system.services.college_recommender import recommend_colleges
+from secure_career_system.services.exam_guidance import get_exam_guidance
+from secure_career_system.services.learning_engine import generate_learning_roadmap
+from secure_career_system.services.career_map import get_career_map
+from secure_career_system.ai_modules.career_simulator import simulate_career
+from secure_career_system.ai_modules.career_twin import predict_career_twins
+from secure_career_system.ai_modules.market_analysis import get_skill_demand
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')
@@ -905,6 +920,23 @@ def profile():
         cgpa_str = (request.form.get('cgpa') or '').strip()
         
         current_user.email = email
+
+        # Universal career navigation fields
+        education_level = (request.form.get('education_level') or '').strip()
+        career_goal = (request.form.get('career_goal') or '').strip()
+        interests = (request.form.get('interests') or '').strip()
+        experience_level = (request.form.get('experience_level') or '').strip()
+
+        if education_level:
+            current_user.education_level = education_level
+        if career_goal:
+            current_user.career_goal = career_goal
+        if interests:
+            current_user.interests = interests
+        if skills:
+            current_user.skills = skills
+        if experience_level:
+            current_user.experience_level = experience_level
         
         if not profile:
             profile = StudentProfile(user_id=current_user.id, skills=skills)
@@ -1093,11 +1125,14 @@ def generate_job_recommendations():
             'score': j.get('match_score', 70),
         } for j in ai_jobs]
     else:
-        # Fallback static list
+        # Fallback static list (Feature 12: supports internships, entry-level, research, freelance)
         job_data = [
             {'title': 'Junior Software Developer', 'company': 'Tech Corp', 'skills': 'Python, JavaScript, Git', 'score': 85},
             {'title': 'Data Analyst', 'company': 'Analytics Inc', 'skills': 'Python, SQL, Excel', 'score': 78},
             {'title': 'Frontend Developer', 'company': 'Web Solutions', 'skills': 'JavaScript, React, CSS', 'score': 72},
+            {'title': 'Software Engineering Intern', 'company': 'StartupXYZ', 'skills': 'Python, Git, Problem Solving', 'score': 70},
+            {'title': 'Research Assistant – AI Lab', 'company': 'University Research Center', 'skills': 'Python, ML, Research Writing', 'score': 65},
+            {'title': 'Freelance Web Developer', 'company': 'Upwork / Freelancer', 'skills': 'HTML, CSS, JavaScript, React', 'score': 60},
         ]
 
     # Clear existing recommendations
@@ -1365,6 +1400,145 @@ def cancel_mentorship_request(connection_id):
         connection.end_date = datetime.utcnow()
     db.session.commit()
     return redirect(url_for('my_mentorship_connections'))
+
+
+# ==================== UNIVERSAL AI CAREER NAVIGATION API ENDPOINTS ====================
+
+@app.route('/api/stream-recommendation', methods=['POST'])
+def api_stream_recommendation():
+    """Feature 1: Stream recommendation for Class 10 students."""
+    data = request.get_json() or {}
+    result = recommend_streams(
+        favorite_subjects=data.get('favorite_subjects'),
+        interests=data.get('interests'),
+        logical_reasoning_score=data.get('logical_reasoning_score'),
+        personality_traits=data.get('personality_traits'),
+    )
+    return jsonify({'recommendations': result})
+
+
+@app.route('/api/course-recommendation', methods=['POST'])
+def api_course_recommendation():
+    """Feature 2: Course recommendation for Class 12 students."""
+    data = request.get_json() or {}
+    result = recommend_courses(
+        stream=data.get('stream'),
+        subjects=data.get('subjects'),
+        interests=data.get('interests'),
+        marks=data.get('marks'),
+        skills=data.get('skills'),
+        assessment_result=data.get('assessment_result'),
+    )
+    return jsonify({'recommendations': result})
+
+
+@app.route('/api/college-recommendation', methods=['POST'])
+def api_college_recommendation():
+    """Feature 3: College/university recommendation."""
+    data = request.get_json() or {}
+    result = recommend_colleges(
+        course=data.get('course'),
+        location=data.get('location'),
+        max_fees=data.get('max_fees'),
+        college_type=data.get('college_type'),
+    )
+    return jsonify({'recommendations': result})
+
+
+@app.route('/api/exam-guidance', methods=['POST'])
+def api_exam_guidance():
+    """Feature 4: Entrance exam guidance."""
+    data = request.get_json() or {}
+    result = get_exam_guidance(
+        career=data.get('career'),
+        category=data.get('category'),
+    )
+    return jsonify(result)
+
+
+@app.route('/api/advanced-skill-gap', methods=['POST'])
+def api_advanced_skill_gap():
+    """Feature 5: Advanced skill gap analysis by career stage."""
+    data = request.get_json() or {}
+    found_skills = data.get('found_skills', [])
+    education_level = data.get('education_level', 'Undergraduate')
+    result = analyze_skill_gaps_by_stage(found_skills, education_level)
+    return jsonify(result)
+
+
+@app.route('/api/career-simulation', methods=['POST'])
+def api_career_simulation():
+    """Feature 6: Career simulator — step-by-step career path."""
+    data = request.get_json() or {}
+    target_career = data.get('target_career', 'Software Engineer')
+    education_level = data.get('education_level', 'Undergraduate')
+    result = simulate_career(target_career, education_level)
+    return jsonify(result)
+
+
+@app.route('/api/career-twin', methods=['POST'])
+def api_career_twin():
+    """Feature 7: AI Career Twin — multiple career future predictions."""
+    data = request.get_json() or {}
+    result = predict_career_twins(
+        skills=data.get('skills'),
+        interests=data.get('interests'),
+        education_level=data.get('education_level'),
+        assessment_scores=data.get('assessment_scores'),
+    )
+    return jsonify({'career_twins': result})
+
+
+@app.route('/api/skill-demand', methods=['GET'])
+def api_skill_demand():
+    """Feature 8: Global skill demand analysis."""
+    return jsonify(get_skill_demand())
+
+
+@app.route('/api/learning-roadmap', methods=['POST'])
+def api_learning_roadmap():
+    """Feature 9: AI personal learning engine — structured roadmap."""
+    data = request.get_json() or {}
+    target_career = data.get('target_career', 'Software Engineer')
+    current_skills = data.get('current_skills')
+    education_level = data.get('education_level')
+    result = generate_learning_roadmap(target_career, current_skills, education_level)
+    return jsonify(result)
+
+
+@app.route('/api/resume-builder', methods=['POST'])
+def api_resume_builder():
+    """Feature 10: AI Resume + Profile Builder."""
+    data = request.get_json() or {}
+    resume_draft = generate_resume_draft(data)
+    linkedin = generate_linkedin_suggestions(data)
+    portfolio = generate_portfolio_recommendations(data)
+    return jsonify({
+        'resume_draft': resume_draft,
+        'linkedin_suggestions': linkedin,
+        'portfolio_recommendations': portfolio,
+    })
+
+
+@app.route('/api/career-map', methods=['POST'])
+def api_career_map():
+    """Feature 11: Career opportunity map."""
+    data = request.get_json() or {}
+    career = data.get('career', 'Software Engineer')
+    result = get_career_map(career)
+    return jsonify(result)
+
+
+@app.route('/api/career-switch-roadmap', methods=['POST'])
+def api_career_switch_roadmap():
+    """Feature 13: Lifelong learning — career switching roadmap."""
+    data = request.get_json() or {}
+    target_career = data.get('target_career', 'AI Engineer')
+    current_skills = data.get('current_skills')
+    education_level = data.get('education_level', 'Professional')
+    result = generate_learning_roadmap(target_career, current_skills, education_level)
+    result['switch_mode'] = True
+    return jsonify(result)
 
 
 # ==================== FEATURE 7: Progress Tracking ====================

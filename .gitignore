@@ -12,3 +12,5 @@ secure_career_system/uploads/
 *.log
 server.out.log
 server.err.log
+*.db
+security.log
