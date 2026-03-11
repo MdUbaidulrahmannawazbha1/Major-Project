@@ -23,8 +23,9 @@ from secure_career_system.extensions import db, login_manager, bcrypt
 from secure_career_system.models import (
     User, StudentProfile, Assessment, Resume, AuditLog, CounsellorNote, Appointment,
     Certification, Notification, CareerRoadmap, JobRecommendation, PortfolioItem,
-    Mentor, MentorshipConnection, SkillProgress
+    Mentor, MentorshipConnection, SkillProgress, AIResult
 )
+from secure_career_system import ai_engine
 from werkzeug.utils import secure_filename
 from flask_talisman import Talisman
 from secure_career_system.resume_analyzer import analyze_resume
@@ -435,9 +436,77 @@ def assessment():
             placement_prob=placement_prob
         )
         db.session.add(assessment_record)
+        db.session.flush()  # get assessment_record.id for AI result linkage
         
+        # ---- Central AI Engine Integration ----
+        user_skills_list = [s.strip() for s in skills.split(',') if s.strip()] if skills else []
+
+        ai_career = ai_engine.predict_career(responses, cgpa=cgpa, skills=skills)
+        ai_career_id = ai_career.get('career_id', int(prediction))
+
+        ai_gaps = ai_engine.analyze_skill_gaps(user_skills_list, ai_career_id)
+
+        ai_placement = ai_engine.predict_placement(
+            assessment_score=base_score,
+            cgpa=cgpa if cgpa is not None else 0.0,
+            skills_count=len(user_skills_list),
+        )
+
+        ai_jobs = ai_engine.match_jobs(ai_career_id, user_skills_list)
+        ai_roadmap = ai_engine.generate_roadmap(ai_career_id, user_skills_list)
+
+        # Fetch mentors for matching
+        mentor_list = []
+        for m in Mentor.query.filter(Mentor.availability.in_(['available', 'limited'])).all():
+            mentor_list.append({
+                'user_id': m.user_id,
+                'expertise': m.expertise or '',
+                'availability': m.availability,
+            })
+        ai_mentors = ai_engine.match_mentors(ai_career_id, ai_gaps.get('missing_skills', []), mentor_list)
+
+        # Portfolio feedback
+        portfolio_items = PortfolioItem.query.filter_by(user_id=current_user.id).all()
+        portfolio_data = [
+            {'title': p.title, 'description': p.description, 'skills_used': p.category or '', 'url': p.github_url or p.media_url or ''}
+            for p in portfolio_items
+        ]
+        ai_portfolio = ai_engine.get_portfolio_feedback(portfolio_data, ai_career_id, ai_gaps.get('missing_skills', []))
+
+        # Store consolidated AI result
+        ai_result = AIResult(
+            user_id=current_user.id,
+            assessment_id=assessment_record.id,
+            career_id=ai_career_id,
+            career_name=ai_career.get('career_name', 'Technology'),
+            confidence=ai_career.get('confidence', confidence),
+            domain_scores=json.dumps(ai_career.get('scores', {})),
+            skill_gaps=json.dumps(ai_gaps.get('missing_skills', [])),
+            gap_score=ai_gaps.get('gap_score', 0.0),
+            placement_probability=ai_placement.get('probability', placement_prob),
+            placement_factors=json.dumps(ai_placement.get('factors', {})),
+            job_recommendations=json.dumps(ai_jobs),
+            roadmap_data=json.dumps(ai_roadmap),
+            certification_suggestions=json.dumps(ai_roadmap.get('certifications', [])),
+            mentorship_scores=json.dumps(ai_mentors),
+            portfolio_feedback=json.dumps(ai_portfolio),
+        )
+        db.session.add(ai_result)
+
+        # Update AI-driven job recommendations in DB
+        JobRecommendation.query.filter_by(user_id=current_user.id).delete()
+        for job in ai_jobs[:8]:
+            db.session.add(JobRecommendation(
+                user_id=current_user.id,
+                job_title=job['title'],
+                company=job['company'],
+                description=job.get('description', ''),
+                required_skills=job.get('required_skills', ''),
+                matching_score=round(job.get('matching_score', 0) * 100, 1),
+            ))
+
         # Align roadmap with the newly suggested career path
-        _ensure_user_career_roadmap(current_user.id, int(prediction))
+        _ensure_user_career_roadmap(current_user.id, ai_career_id)
         
         db.session.commit()
 
@@ -445,8 +514,8 @@ def assessment():
         current_user.points = (current_user.points or 0) + 10
         db.session.commit()
 
-        logging.info(f'Assessment completed for user {current_user.username}: Tech={tech_score:.2f}, Finance={finance_score:.2f}, Healthcare={healthcare_score:.2f}, CGPA={cgpa}, Result={prediction}')
-        return redirect(url_for('result', result=prediction))
+        logging.info(f'Assessment completed for user {current_user.username}: Tech={tech_score:.2f}, Finance={finance_score:.2f}, Healthcare={healthcare_score:.2f}, CGPA={cgpa}, Result={prediction}, AI_Career={ai_career_id}')
+        return redirect(url_for('result', result=ai_career_id))
 
     return render_template('assessment.html')
 
@@ -974,33 +1043,33 @@ def generate_job_recommendations():
     if not profile or not profile.skills:
         return jsonify({'error': 'Complete your profile with skills first'}), 400
     
-    skills = profile.skills.split(',')
-    
-    # Default job recommendations based on career path
-    job_data = [
-        {'title': 'Junior Software Developer', 'company': 'Tech Corp', 'skills': 'Python, JavaScript, Git', 'score': 85},
-        {'title': 'Data Analyst', 'company': 'Analytics Inc', 'skills': 'Python, SQL, Excel', 'score': 78},
-        {'title': 'Frontend Developer', 'company': 'Web Solutions', 'skills': 'JavaScript, React, CSS', 'score': 72},
-    ]
+    skills = [s.strip() for s in profile.skills.split(',') if s.strip()]
+
+    # Use AI engine: get latest AI result for career_id or default to 0
+    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(AIResult.created_at.desc()).first()
+    career_id = latest_ai.career_id if latest_ai else 0
+
+    ai_jobs = ai_engine.match_jobs(career_id, skills)
     
     # Clear existing recommendations
     JobRecommendation.query.filter_by(user_id=current_user.id).delete()
     
-    for job in job_data:
+    for job in ai_jobs[:8]:
         recommendation = JobRecommendation(
             user_id=current_user.id,
             job_title=job['title'],
             company=job['company'],
-            required_skills=job['skills'],
-            matching_score=job['score']
+            description=job.get('description', ''),
+            required_skills=job.get('required_skills', ''),
+            matching_score=round(job.get('matching_score', 0) * 100, 1),
         )
         db.session.add(recommendation)
     
     db.session.commit()
     current_user.points = (current_user.points or 0) + 10
     db.session.commit()
-    logging.info(f'Job recommendations generated for user: {current_user.username}')
-    return jsonify({'status': 'recommendations generated', 'count': len(job_data)})
+    logging.info(f'AI job recommendations generated for user: {current_user.username}')
+    return jsonify({'status': 'recommendations generated', 'count': len(ai_jobs[:8])})
 
 
 # ==================== FEATURE 5: Portfolio ====================
@@ -1373,6 +1442,74 @@ def update_roadmap_milestone():
         logging.info(f'Career roadmap milestone updated for user: {current_user.username}')
     
     return redirect(url_for('career_roadmap'))
+
+
+# ==================== AI Module: Career Recommendation ====================
+@app.route('/ai-career-recommendation')
+def ai_career_recommendation():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+
+    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(AIResult.created_at.desc()).first()
+
+    career_data = None
+    if latest_ai:
+        career_data = {
+            'career_name': latest_ai.career_name,
+            'career_id': latest_ai.career_id,
+            'confidence': latest_ai.confidence,
+            'domain_scores': json.loads(latest_ai.domain_scores) if latest_ai.domain_scores else {},
+            'created_at': latest_ai.created_at.strftime('%B %d, %Y %I:%M %p') if latest_ai.created_at else '',
+        }
+
+    return render_template('ai_career_recommendation.html', user=current_user.username, career_data=career_data)
+
+
+# ==================== AI Module: Skill Gap Analyzer ====================
+@app.route('/ai-skill-gap')
+def ai_skill_gap():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+
+    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(AIResult.created_at.desc()).first()
+
+    gap_data = None
+    if latest_ai:
+        missing_skills = json.loads(latest_ai.skill_gaps) if latest_ai.skill_gaps else []
+        # Generate recommendations for each missing skill
+        recommendations = []
+        for skill in missing_skills:
+            course = ai_engine.COURSE_SUGGESTIONS.get(skill, f'Search online courses for {skill}')
+            recommendations.append({'skill': skill, 'course': course})
+
+        gap_data = {
+            'career_name': latest_ai.career_name,
+            'missing_skills': missing_skills,
+            'gap_score': latest_ai.gap_score,
+            'recommendations': recommendations,
+        }
+
+    return render_template('ai_skill_gap.html', user=current_user.username, gap_data=gap_data)
+
+
+# ==================== AI Module: Placement Prediction ====================
+@app.route('/ai-placement-prediction')
+def ai_placement_prediction():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+
+    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(AIResult.created_at.desc()).first()
+
+    placement_data = None
+    if latest_ai:
+        placement_data = {
+            'probability': latest_ai.placement_probability,
+            'factors': json.loads(latest_ai.placement_factors) if latest_ai.placement_factors else {},
+            'career_name': latest_ai.career_name,
+            'created_at': latest_ai.created_at.strftime('%B %d, %Y %I:%M %p') if latest_ai.created_at else '',
+        }
+
+    return render_template('ai_placement_prediction.html', user=current_user.username, placement_data=placement_data)
 
 
 @app.route('/logout')
