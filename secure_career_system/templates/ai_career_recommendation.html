@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Career Recommendation - Secure Career System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+        .navbar { background: #667eea; color: white; padding: 20px 0; }
+        .navbar-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { font-size: 24px; }
+        .navbar a { color: white; text-decoration: none; margin-left: 20px; }
+        .navbar a:hover { opacity: 0.8; }
+        .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); margin-bottom: 20px; }
+        h2 { color: #333; margin-bottom: 20px; }
+        .ai-badge { display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 15px; }
+        .result-badge { display: inline-block; background: #667eea; color: white; padding: 15px 30px; border-radius: 10px; font-size: 22px; font-weight: bold; margin-bottom: 20px; }
+        .confidence-bar { background: #e0e0e0; border-radius: 10px; height: 24px; overflow: hidden; margin: 10px 0 20px 0; }
+        .confidence-fill { height: 100%; border-radius: 10px; background: linear-gradient(90deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; color: white; font-size: 13px; font-weight: 600; }
+        .scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px; }
+        .score-item { background: #f5f7fa; padding: 15px; border-radius: 8px; text-align: center; }
+        .score-item h4 { margin-bottom: 5px; color: #333; }
+        .score-item .value { font-size: 24px; font-weight: bold; color: #667eea; }
+        .empty-state { text-align: center; padding: 40px; color: #888; }
+        .btn { display: inline-block; background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; }
+        .btn:hover { background: #764ba2; }
+        .meta { color: #888; font-size: 14px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-container">
+            <h1>🤖 AI Career Recommendation</h1>
+            <div>
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        {% if career_data %}
+        <div class="card">
+            <span class="ai-badge">🧠 AI Powered</span>
+            <h2>Your Recommended Career Path</h2>
+            <div class="result-badge">{{ career_data.career_name }}</div>
+
+            <p><strong>Prediction Confidence:</strong></p>
+            <div class="confidence-bar">
+                <div class="confidence-fill" style="width: {{ (career_data.confidence * 100)|round(1) }}%;">
+                    {{ (career_data.confidence * 100)|round(1) }}%
+                </div>
+            </div>
+
+            <h3>Domain Scores</h3>
+            <div class="scores">
+                {% for domain, score in career_data.domain_scores.items() %}
+                <div class="score-item">
+                    <h4>{{ domain|capitalize }}</h4>
+                    <div class="value">{{ score }}</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <p class="meta">Last updated: {{ career_data.created_at }}</p>
+        </div>
+
+        <div class="card" style="text-align: center;">
+            <h3>Explore Related Modules</h3>
+            <p style="color: #666; margin-bottom: 15px;">Your AI career prediction influences these modules:</p>
+            <a href="{{ url_for('ai_skill_gap') }}" class="btn">🔍 Skill Gap Analysis</a>
+            <a href="{{ url_for('ai_placement_prediction') }}" class="btn">📊 Placement Prediction</a>
+            <a href="{{ url_for('job_recommendations') }}" class="btn">💼 Job Recommendations</a>
+            <a href="{{ url_for('career_roadmap') }}" class="btn">🚀 Career Roadmap</a>
+        </div>
+        {% else %}
+        <div class="card empty-state">
+            <h2>No AI Career Prediction Yet</h2>
+            <p>Take an assessment to get your AI-powered career recommendation.</p>
+            <br>
+            <a href="{{ url_for('assessment') }}" class="btn">Take Assessment</a>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
