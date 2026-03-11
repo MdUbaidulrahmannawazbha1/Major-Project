@@ -77,6 +77,13 @@
             {% endif %}
         </div>
 
+        {% if ai_explanation %}
+        <div class="careers" style="margin-top:20px; border-left: 4px solid #667eea; background:#f0f2ff;">
+            <h3 style="color:#667eea;">&#129302; AI Career Counselor Says</h3>
+            <p style="color:#444; line-height:1.7; margin-top:10px;">{{ ai_explanation }}</p>
+        </div>
+        {% endif %}
+
         {% if suggested_roadmap %}
         <div class="careers" style="margin-top: 20px;">
             <h3>Suggested Roadmap for {{ career_path }}</h3>
