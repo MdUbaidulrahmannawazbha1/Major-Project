@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Placement Prediction - Secure Career System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+        .navbar { background: #667eea; color: white; padding: 20px 0; }
+        .navbar-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { font-size: 24px; }
+        .navbar a { color: white; text-decoration: none; margin-left: 20px; }
+        .navbar a:hover { opacity: 0.8; }
+        .container { max-width: 800px; margin: 40px auto; padding: 0 20px; }
+        .card { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); margin-bottom: 30px; }
+        h2 { color: #333; margin-bottom: 20px; }
+        p.desc { color: #666; margin-bottom: 25px; line-height: 1.6; }
+        .ai-badge { display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-bottom: 15px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #555; font-weight: 500; }
+        input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+        input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 5px rgba(102, 126, 234, 0.3); }
+        small { color: #888; }
+        button { width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity 0.3s; }
+        button:hover { opacity: 0.9; }
+
+        .result-section { display: none; }
+        .gauge { width: 200px; height: 100px; margin: 20px auto; position: relative; overflow: hidden; }
+        .gauge-bg { width: 200px; height: 100px; border-radius: 100px 100px 0 0; background: #ecf0f1; }
+        .gauge-fill { width: 200px; height: 100px; border-radius: 100px 100px 0 0; position: absolute; top: 0; left: 0; transform-origin: bottom center; transform: rotate(0deg); transition: transform 0.8s; }
+        .gauge-cover { width: 160px; height: 80px; border-radius: 80px 80px 0 0; background: white; position: absolute; bottom: 0; left: 20px; }
+        .gauge-value { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); font-size: 28px; font-weight: bold; color: #667eea; }
+
+        .prob-high { color: #27ae60; }
+        .prob-medium { color: #f39c12; }
+        .prob-low { color: #e74c3c; }
+
+        .factors { background: #f5f7fa; padding: 20px; border-radius: 10px; margin-top: 20px; }
+        .factors h3 { margin-bottom: 10px; }
+        .factor-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0; }
+        .factor-row:last-child { border-bottom: none; }
+        .factor-label { color: #555; }
+        .factor-value { font-weight: 600; color: #333; }
+
+        .tips { margin-top: 20px; }
+        .tips h3 { margin-bottom: 10px; color: #333; }
+        .tips ul { padding-left: 20px; }
+        .tips li { margin: 6px 0; color: #555; font-size: 14px; }
+
+        .btn-back { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #95a5a6; color: white; text-decoration: none; border-radius: 5px; }
+        .btn-back:hover { background: #7f8c8d; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-container">
+            <h1>Career System</h1>
+            <div>
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <span class="ai-badge">🤖 AI-Powered</span>
+            <h2>AI Placement Prediction</h2>
+            <p class="desc">Our Logistic Regression model predicts your placement probability based on academic performance, skills, projects and internships. Enter your details below to see your predicted outcome.</p>
+
+            <form id="placementForm">
+                <div class="form-group">
+                    <label for="cgpa">CGPA (0 - 10)</label>
+                    <input type="number" id="cgpa" name="cgpa" min="0" max="10" step="0.1" required
+                        value="{{ cgpa or '' }}" placeholder="e.g. 7.5">
+                </div>
+                <div class="form-group">
+                    <label for="num_skills">Number of Technical Skills</label>
+                    <input type="number" id="num_skills" name="num_skills" min="0" max="20" value="3" required>
+                    <small>Count of distinct technical skills you have (0-20)</small>
+                </div>
+                <div class="form-group">
+                    <label for="num_projects">Number of Projects Completed</label>
+                    <input type="number" id="num_projects" name="num_projects" min="0" max="10" value="1" required>
+                    <small>Academic or personal projects (0-10)</small>
+                </div>
+                <div class="form-group">
+                    <label for="num_internships">Number of Internships</label>
+                    <input type="number" id="num_internships" name="num_internships" min="0" max="5" value="0" required>
+                    <small>Completed internship experiences (0-5)</small>
+                </div>
+
+                <button type="submit">🎯 Predict Placement</button>
+            </form>
+        </div>
+
+        <div class="card result-section" id="resultSection">
+            <span class="ai-badge">📊 Prediction Result</span>
+            <h2>Placement Probability</h2>
+
+            <div style="text-align:center">
+                <div class="gauge">
+                    <div class="gauge-bg"></div>
+                    <div class="gauge-fill" id="gaugeFill"></div>
+                    <div class="gauge-cover"></div>
+                    <div class="gauge-value" id="gaugeValue">0%</div>
+                </div>
+                <p id="verdictText" style="font-size:20px; font-weight:bold; margin-top:10px;"></p>
+            </div>
+
+            <div class="factors" id="factorsSection">
+                <h3>📋 Input Factors</h3>
+                <div id="factorsContent"></div>
+            </div>
+
+            <div class="tips" id="tipsSection">
+                <h3>💡 Tips to Improve Your Chances</h3>
+                <ul id="tipsList"></ul>
+            </div>
+
+            <a href="{{ url_for('dashboard') }}" class="btn-back">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('placementForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var data = {
+                cgpa: parseFloat(document.getElementById('cgpa').value),
+                num_skills: parseInt(document.getElementById('num_skills').value),
+                num_projects: parseInt(document.getElementById('num_projects').value),
+                num_internships: parseInt(document.getElementById('num_internships').value)
+            };
+
+            fetch('{{ url_for("ai_placement_predict_api") }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.error) { alert(res.error); return; }
+                document.getElementById('resultSection').style.display = 'block';
+
+                var prob = res.probability;
+                var pct = (prob * 100).toFixed(1);
+                document.getElementById('gaugeValue').textContent = pct + '%';
+
+                // Rotate gauge (180deg = 100%)
+                var deg = prob * 180;
+                var fill = document.getElementById('gaugeFill');
+                fill.style.background = prob > 0.7 ? '#27ae60' : prob > 0.4 ? '#f39c12' : '#e74c3c';
+                fill.style.transform = 'rotate(' + deg + 'deg)';
+
+                var verdict = document.getElementById('verdictText');
+                if (prob > 0.7) {
+                    verdict.textContent = '🟢 High Placement Likelihood';
+                    verdict.className = 'prob-high';
+                } else if (prob > 0.4) {
+                    verdict.textContent = '🟡 Moderate Placement Likelihood';
+                    verdict.className = 'prob-medium';
+                } else {
+                    verdict.textContent = '🔴 Needs Improvement';
+                    verdict.className = 'prob-low';
+                }
+
+                // Factors
+                var fhtml = '';
+                var factors = [
+                    ['CGPA', data.cgpa + ' / 10'],
+                    ['Technical Skills', data.num_skills],
+                    ['Projects', data.num_projects],
+                    ['Internships', data.num_internships]
+                ];
+                factors.forEach(function(f) {
+                    fhtml += '<div class="factor-row"><span class="factor-label">' + f[0] + '</span><span class="factor-value">' + f[1] + '</span></div>';
+                });
+                document.getElementById('factorsContent').innerHTML = fhtml;
+
+                // Tips
+                var tips = [];
+                if (data.cgpa < 7) tips.push('Aim for a CGPA above 7.0 to improve your profile strength.');
+                if (data.num_skills < 5) tips.push('Learn at least 5 technical skills relevant to your career.');
+                if (data.num_projects < 2) tips.push('Complete 2+ projects to demonstrate practical experience.');
+                if (data.num_internships < 1) tips.push('Gain at least one internship for real-world exposure.');
+                if (tips.length === 0) tips.push('Your profile looks strong! Keep building on your experience.');
+                var thtml = '';
+                tips.forEach(function(t) { thtml += '<li>' + t + '</li>'; });
+                document.getElementById('tipsList').innerHTML = thtml;
+
+                document.getElementById('resultSection').scrollIntoView({behavior: 'smooth'});
+            })
+            .catch(function(err) { alert('Error: ' + err); });
+        });
+    </script>
+</body>
+</html>

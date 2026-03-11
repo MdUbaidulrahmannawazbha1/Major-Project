@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Skill Gap Analyzer - Secure Career System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+        .navbar { background: #667eea; color: white; padding: 20px 0; }
+        .navbar-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { font-size: 24px; }
+        .navbar a { color: white; text-decoration: none; margin-left: 20px; }
+        .navbar a:hover { opacity: 0.8; }
+        .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        .card { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); margin-bottom: 30px; }
+        h2 { color: #333; margin-bottom: 20px; }
+        p.desc { color: #666; margin-bottom: 25px; line-height: 1.6; }
+        .ai-badge { display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-bottom: 15px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #555; font-weight: 500; }
+        select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; font-family: inherit; }
+        select:focus, textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 5px rgba(102, 126, 234, 0.3); }
+        textarea { resize: vertical; min-height: 100px; }
+        button { width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity 0.3s; }
+        button:hover { opacity: 0.9; }
+
+        .result-section { display: none; }
+        .match-circle { width: 120px; height: 120px; border-radius: 50%; background: conic-gradient(#667eea var(--pct), #ecf0f1 var(--pct)); display: flex; align-items: center; justify-content: center; margin: 20px auto; }
+        .match-inner { width: 90px; height: 90px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; color: #667eea; }
+
+        .skill-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .skill-box { padding: 15px; border-radius: 8px; }
+        .matched { background: #d5f4e6; border-left: 4px solid #27ae60; }
+        .missing { background: #fbe6e4; border-left: 4px solid #e74c3c; }
+        .skill-box h4 { margin-bottom: 8px; }
+        .skill-box ul { padding-left: 16px; }
+        .skill-box li { margin: 4px 0; font-size: 14px; color: #555; }
+
+        .recs { margin-top: 25px; }
+        .rec-item { background: #f5f7fa; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+        .rec-item h4 { color: #333; margin-bottom: 5px; }
+        .rec-item .importance { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; color: white; margin-left: 8px; }
+        .imp-5 { background: #e74c3c; } .imp-4 { background: #e67e22; } .imp-3 { background: #f1c40f; color: #333; }
+        .imp-2 { background: #95a5a6; } .imp-1 { background: #bdc3c7; color: #333; }
+        .rec-item ul { padding-left: 16px; margin-top: 5px; }
+        .rec-item li { font-size: 13px; color: #666; margin: 3px 0; }
+
+        .btn-back { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #95a5a6; color: white; text-decoration: none; border-radius: 5px; }
+        .btn-back:hover { background: #7f8c8d; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-container">
+            <h1>Career System</h1>
+            <div>
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <span class="ai-badge">🤖 AI-Powered</span>
+            <h2>AI Skill Gap Analyzer</h2>
+            <p class="desc">Enter your current skills and select a target career. Our AI will compare your skill set against industry requirements and highlight what you need to learn, prioritised by importance.</p>
+
+            <form id="gapForm">
+                <div class="form-group">
+                    <label for="career">Target Career Path</label>
+                    <select id="career" name="career">
+                        <option value="Technology">Technology</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Healthcare">Healthcare</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="skills">Your Skills (comma-separated)</label>
+                    <textarea id="skills" name="skills" placeholder="e.g. Python, SQL, Git, Machine Learning">{{ user_skills or '' }}</textarea>
+                </div>
+
+                <button type="submit">🔍 Analyze Skill Gap</button>
+            </form>
+        </div>
+
+        <div class="card result-section" id="resultSection">
+            <span class="ai-badge">📊 Analysis Result</span>
+            <h2>Skill Gap Analysis for <span id="resCareer"></span></h2>
+
+            <div class="match-circle" id="matchCircle" style="--pct: 0%">
+                <div class="match-inner" id="matchPct">0%</div>
+            </div>
+            <p style="text-align:center; color:#666;">Skills Match</p>
+
+            <div class="skill-grid">
+                <div class="skill-box matched">
+                    <h4>✅ Matched Skills (<span id="matchCount">0</span>)</h4>
+                    <ul id="matchedList"></ul>
+                </div>
+                <div class="skill-box missing">
+                    <h4>❌ Missing Skills (<span id="missCount">0</span>)</h4>
+                    <ul id="missingList"></ul>
+                </div>
+            </div>
+
+            <div class="recs" id="recsSection">
+                <h3>📚 Learning Recommendations (by priority)</h3>
+                <div id="recsContent"></div>
+            </div>
+
+            <a href="{{ url_for('dashboard') }}" class="btn-back">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('gapForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var career = document.getElementById('career').value;
+            var skills = document.getElementById('skills').value;
+
+            fetch('{{ url_for("ai_skill_gap_api") }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({career: career, skills: skills})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.error) { alert(res.error); return; }
+                document.getElementById('resultSection').style.display = 'block';
+                document.getElementById('resCareer').textContent = res.career;
+
+                var pct = res.match_percentage;
+                document.getElementById('matchCircle').style.setProperty('--pct', pct + '%');
+                document.getElementById('matchPct').textContent = pct + '%';
+
+                document.getElementById('matchCount').textContent = res.matched_skills.length;
+                document.getElementById('missCount').textContent = res.missing_skills.length;
+
+                var mhtml = '';
+                res.matched_skills.forEach(function(s) { mhtml += '<li>' + s + '</li>'; });
+                document.getElementById('matchedList').innerHTML = mhtml || '<li>None</li>';
+
+                var mshtml = '';
+                res.missing_skills.forEach(function(s) { mshtml += '<li>' + s + '</li>'; });
+                document.getElementById('missingList').innerHTML = mshtml || '<li>None – great job!</li>';
+
+                var rhtml = '';
+                if (res.recommendations) {
+                    Object.keys(res.recommendations).forEach(function(skill) {
+                        var rec = res.recommendations[skill];
+                        var imp = rec.importance || 0;
+                        rhtml += '<div class="rec-item"><h4>' + skill + '<span class="importance imp-' + imp + '">Priority ' + imp + '/5</span></h4><ul>';
+                        (rec.resources || []).forEach(function(r) { rhtml += '<li>📖 ' + r + '</li>'; });
+                        rhtml += '</ul></div>';
+                    });
+                }
+                document.getElementById('recsContent').innerHTML = rhtml || '<p>No recommendations needed!</p>';
+
+                document.getElementById('resultSection').scrollIntoView({behavior: 'smooth'});
+            })
+            .catch(function(err) { alert('Error: ' + err); });
+        });
+    </script>
+</body>
+</html>
