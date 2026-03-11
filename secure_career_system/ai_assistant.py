@@ -129,7 +129,7 @@ _INTENT_PATTERNS = [
     ("course_recommend", re.compile(
         r"\b(course|certificate|certification|training|class|learn)\b", re.I)),
     ("roadmap", re.compile(
-        r"\b(roadmap|step|plan|guide|mileston|path)\b", re.I)),
+        r"\b(roadmap|step|plan|guide|milestone|path)\b", re.I)),
     ("resume_help", re.compile(
         r"\b(resume|cv|cover letter|portfolio)\b", re.I)),
     ("placement", re.compile(
