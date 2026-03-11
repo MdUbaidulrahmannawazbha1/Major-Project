@@ -444,7 +444,8 @@ def generate_roadmap(career_id: int, current_skills: list) -> dict:
         required = CAREER_SKILLS.get(career_id, CAREER_SKILLS[0])
 
         normalized_user = set(_normalize_skills(current_skills))
-        coverage = len(normalized_user.intersection(set(required))) / max(len(required), 1)
+        required_set = set(required)
+        coverage = len(normalized_user.intersection(required_set)) / max(len(required), 1)
 
         # More skills covered → shorter timeline (base 24 months, min 6)
         timeline_months = max(int(24 * (1 - coverage * 0.5)), 6)
