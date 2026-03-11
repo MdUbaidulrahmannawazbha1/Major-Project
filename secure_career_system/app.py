@@ -36,7 +36,7 @@ except Exception:
 import os
 import threading
 from cryptography.fernet import Fernet, InvalidToken
-from secure_career_system import train_model
+import secure_career_system.train_model as train_model
 from flask_migrate import Migrate
 import joblib
 import logging
@@ -47,7 +47,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+
+from secure_career_system import ai_service
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')
@@ -293,10 +295,20 @@ def login():
             email = user.email
             if send_otp_email(email, otp):
                 logging.info(f'OTP generated and sent for user: {username}')
+                return redirect(url_for('verify_otp', username=username))
             else:
-                logging.warning(f'Failed to send OTP email for user: {username}')
+                allow_local_otp = os.getenv('ALLOW_LOCAL_OTP_FALLBACK', '1') == '1'
+                if app.debug and allow_local_otp:
+                    logging.warning(
+                        f'OTP email failed for user {username}; using local fallback OTP: {otp}'
+                    )
+                    return redirect(url_for('verify_otp', username=username))
 
-            return redirect(url_for('verify_otp', username=username))
+                logging.warning(f'Failed to send OTP email for user: {username}')
+                return render_template(
+                    'login.html',
+                    error='Unable to send OTP email. Please check email settings and try again.'
+                )
 
         logging.warning(f'Failed login attempt for username: {username}')
         # increment failed login counter
@@ -643,17 +655,59 @@ def admin_unlock(user_id):
 @app.route('/api/chatbot', methods=['POST'])
 def api_chatbot():
     data = request.get_json() or {}
-    q = (data.get('query') or '').lower()
+    query = (data.get('query') or '').strip()
+    if not query:
+        return jsonify({'reply': 'Please ask me something about your career!'})  
+
+    # Build user context from profile + latest assessment
+    user_profile = None
+    if current_user.is_authenticated:
+        profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
+        latest_assessment = Assessment.query.filter_by(user_id=current_user.id).order_by(Assessment.created_at.desc()).first()
+        career_map = {'0': 'Technology', '1': 'Finance', '2': 'Healthcare'}
+        user_profile = {
+            'skills': profile.skills if profile else None,
+            'cgpa': profile.cgpa if profile else None,
+            'career_path': career_map.get(str(latest_assessment.result), 'Unknown') if latest_assessment else None,
+            'result': latest_assessment.result if latest_assessment else None,
+        }
+
+    if ai_service.is_available():
+        reply = ai_service.chatbot_response(query, user_profile=user_profile)
+        if reply:
+            return jsonify({'reply': reply, 'ai_powered': True})
+
+    # Fallback heuristic
+    q = query.lower()
     if 'recommend' in q or 'career' in q:
-        # simple heuristic: use user's latest resume skills or generic suggestions
-        user_id = data.get('user_id')
-        if user_id:
-            profile = StudentProfile.query.filter_by(user_id=user_id).first()
-            skills = (profile.skills or '').split(',') if profile and profile.skills else []
-            if skills:
-                return jsonify({'reply': f'I see skills: {skills[:5]}. Consider careers in Data, Dev or Cloud.'})
-        return jsonify({'reply': 'Provide your resume or skills and I will suggest careers.'})
-    return jsonify({'reply': "I'm a simple assistant. Ask about career recommendations."})
+        skills = (user_profile.get('skills') or '').split(',') if user_profile else []
+        if skills and skills[0]:
+            return jsonify({'reply': f'Based on your skills ({', '.join(skills[:3])}), consider careers in Data, Software Dev or Cloud. Set GROQ_API_KEY for full AI responses.'})
+        return jsonify({'reply': 'Add your skills in your profile and I can suggest careers. Set GROQ_API_KEY for AI-powered advice.'})
+    return jsonify({'reply': "I'm your career assistant. Set GROQ_API_KEY in .env for full AI-powered responses!"})
+
+
+@app.route('/api/ai-health', methods=['GET'])
+def api_ai_health():
+    """Lightweight AI diagnostics endpoint without exposing secrets."""
+    provider = 'groq'
+    model = os.getenv('GROQ_MODEL', 'llama-3.1-8b-instant')
+    key_configured = bool(os.getenv('GROQ_API_KEY'))
+    available = ai_service.is_available()
+    status = 'ok' if available else 'degraded'
+
+    return jsonify({
+        'status': status,
+        'provider': provider,
+        'model': model,
+        'key_configured': key_configured,
+        'ai_available': available,
+        'message': (
+            'AI integration is active.'
+            if available
+            else 'AI integration unavailable. Check GROQ_API_KEY and model configuration.'
+        )
+    }), (200 if available else 503)
 
 
 @app.route('/admin/analytics')
@@ -806,37 +860,63 @@ def shap_view():
 @app.route('/api/skill_gap', methods=['POST'])
 def api_skill_gap():
     data = request.get_json() or {}
-    # allow passing resume path or user_id
     resume_path = data.get('resume_path')
     user_id = data.get('user_id')
 
+    path = None
     if resume_path:
-        analysis = analyze_resume(resume_path)
-        return jsonify(analysis)
-
-    if user_id:
+        path = resume_path
+    elif user_id:
         resume = Resume.query.filter_by(user_id=user_id).order_by(Resume.uploaded_at.desc()).first()
         if not resume:
             return jsonify({'error': 'no resume found for user'}), 404
         path = os.path.join(app.config['UPLOAD_FOLDER'], resume.filename)
-        analysis = analyze_resume(path)
-        return jsonify(analysis)
+    else:
+        return jsonify({'error': 'resume_path or user_id required'}), 400
 
-    return jsonify({'error': 'resume_path or user_id required'}), 400
+    analysis = analyze_resume(path)
+
+    # Enhance with AI skill-gap analysis if available
+    if ai_service.is_available():
+        latest = Assessment.query.filter_by(user_id=user_id).order_by(Assessment.created_at.desc()).first() if user_id else None
+        career_map = {'0': 'Technology', '1': 'Finance', '2': 'Healthcare'}
+        career_path = career_map.get(str(latest.result), 'Technology') if latest else 'Technology'
+        ai_gaps = ai_service.analyze_skill_gap_ai(analysis.get('found_skills', []), career_path)
+        if ai_gaps:
+            analysis['ai_skill_gaps'] = ai_gaps.get('gaps', [])
+            analysis['ai_powered'] = True
+
+    return jsonify(analysis)
 
 
 @app.route('/roadmap_view')
 def roadmap_view():
-    # generate roadmap for current user based on latest resume analysis
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
+
+    # Determine career path from latest assessment
+    latest_assessment = Assessment.query.filter_by(user_id=current_user.id).order_by(Assessment.created_at.desc()).first()
+    career_map = {'0': 'Technology', '1': 'Finance', '2': 'Healthcare'}
+    career_path = career_map.get(str(latest_assessment.result), 'Technology') if latest_assessment else 'Technology'
+
+    # Get skills from profile
+    profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
+    skills = profile.skills.split(',') if profile and profile.skills else []
+    cgpa = profile.cgpa if profile else None
+
+    # Try AI roadmap first
+    if ai_service.is_available():
+        ai_roadmap = ai_service.generate_roadmap_ai(career_path, skills, cgpa=cgpa)
+        if ai_roadmap and ai_roadmap.get('months'):
+            return render_template('roadmap.html', ai_roadmap=ai_roadmap['months'], career_path=career_path, ai_powered=True)
+
+    # Fallback: resume-based roadmap
     resume = Resume.query.filter_by(user_id=current_user.id).order_by(Resume.uploaded_at.desc()).first()
     if not resume:
-        return render_template('roadmap.html', roadmap={})
+        return render_template('roadmap.html', roadmap={}, career_path=career_path, ai_powered=False)
     path = os.path.join(app.config['UPLOAD_FOLDER'], resume.filename)
     analysis = analyze_resume(path)
-    roadmap = analysis.get('roadmap')
-    return render_template('roadmap.html', roadmap=roadmap)
+    return render_template('roadmap.html', roadmap=analysis.get('roadmap', {}), career_path=career_path, ai_powered=False)
 
 
 
@@ -858,6 +938,16 @@ def result(result):
     roadmap, career_path, milestones = _ensure_user_career_roadmap(current_user.id, result)
     db.session.commit()
 
+    # AI-generated personalised explanation
+    ai_explanation = None
+    if ai_service.is_available():
+        profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
+        skills = profile.skills.split(',') if profile and profile.skills else []
+        cgpa = profile.cgpa if profile else None
+        ai_explanation = ai_service.explain_career_result(
+            career_path, confidence or 0.5, skills=skills, cgpa=cgpa
+        )
+
     logging.info(f'User {current_user.username} completed assessment with result: {result}')
     return render_template(
         'result.html',
@@ -867,7 +957,8 @@ def result(result):
         aid=aid,
         career_path=career_path,
         suggested_roadmap=milestones,
-        current_milestone=(roadmap.current_milestone if roadmap else 0)
+        current_milestone=(roadmap.current_milestone if roadmap else 0),
+        ai_explanation=ai_explanation,
     )
 
 
@@ -1038,39 +1129,54 @@ def job_recommendations():
 def generate_job_recommendations():
     if not current_user.is_authenticated:
         return jsonify({'error': 'Not authenticated'}), 401
-    
+
     profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
-    if not profile or not profile.skills:
-        return jsonify({'error': 'Complete your profile with skills first'}), 400
-    
-    skills = [s.strip() for s in profile.skills.split(',') if s.strip()]
+    raw_skills = profile.skills if profile and profile.skills else ''
+    skills = [s.strip() for s in raw_skills.split(',') if s and s.strip()]
 
-    # Use AI engine: get latest AI result for career_id or default to 0
-    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(AIResult.created_at.desc()).first()
-    career_id = latest_ai.career_id if latest_ai else 0
+    latest_assessment = Assessment.query.filter_by(user_id=current_user.id).order_by(Assessment.created_at.desc()).first()
+    career_map = {'0': 'Technology', '1': 'Finance', '2': 'Healthcare'}
+    career_path = career_map.get(str(latest_assessment.result), 'Technology') if latest_assessment else 'Technology'
 
-    ai_jobs = ai_engine.match_jobs(career_id, skills)
-    
-    # Clear existing recommendations
+    if not skills:
+        default_skill_map = {
+            'Technology': ['Python', 'SQL', 'Git'],
+            'Finance': ['Excel', 'Financial Modeling', 'Power BI'],
+            'Healthcare': ['Patient Care', 'Medical Terminology', 'Communication'],
+        }
+        skills = default_skill_map.get(career_path, ['Communication', 'Problem Solving'])
+
+    career_id_map = {'Technology': 0, 'Finance': 1, 'Healthcare': 2}
+    career_id = career_id_map.get(career_path, 0)
+    job_data = ai_engine.match_jobs(career_id, skills)
+
     JobRecommendation.query.filter_by(user_id=current_user.id).delete()
-    
-    for job in ai_jobs[:8]:
+
+    for job in job_data[:8]:
         recommendation = JobRecommendation(
             user_id=current_user.id,
-            job_title=job['title'],
-            company=job['company'],
+            job_title=job.get('title', ''),
+            company=job.get('company', ''),
             description=job.get('description', ''),
             required_skills=job.get('required_skills', ''),
-            matching_score=round(job.get('matching_score', 0) * 100, 1),
+            matching_score=round(float(job.get('matching_score', 0)) * 100, 1),
         )
         db.session.add(recommendation)
-    
+
     db.session.commit()
     current_user.points = (current_user.points or 0) + 10
     db.session.commit()
-    logging.info(f'AI job recommendations generated for user: {current_user.username}')
-    return jsonify({'status': 'recommendations generated', 'count': len(ai_jobs[:8])})
 
+    logging.info(
+        f'Job recommendations generated for user: {current_user.username} '
+        f'(engine={len(job_data) > 0}, used_fallback_skills={not bool(raw_skills)})'
+    )
+    return jsonify({
+        'status': 'recommendations generated',
+        'count': len(job_data[:8]),
+        'ai_powered': len(job_data) > 0,
+        'used_fallback_skills': not bool(raw_skills),
+    })
 
 # ==================== FEATURE 5: Portfolio ====================
 @app.route('/portfolio', methods=['GET'])
@@ -1527,3 +1633,4 @@ if __name__ == '__main__':
         db.create_all()
 
     app.run(debug=True)
+
