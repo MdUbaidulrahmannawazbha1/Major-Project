@@ -104,7 +104,103 @@
                 <p>Monitor your skill development and learning progress with charts.</p>
                 <a href="{{ url_for('progress_tracking') }}" class="btn">Track Progress</a>
             </div>
+
+            <!-- Universal AI Career Navigation Features -->
+            <div class="card">
+                <h3>🎓 Stream Recommendation</h3>
+                <p>Class 10 students: Find the best stream — Science, Commerce, Arts, or Diploma.</p>
+                <a href="#" onclick="showApiInfo('stream-recommendation')" class="btn">Explore Streams</a>
+            </div>
+
+            <div class="card">
+                <h3>📚 Course Recommendation</h3>
+                <p>Class 12 students: Discover the right course — B.Tech, BCA, MBBS, and more.</p>
+                <a href="#" onclick="showApiInfo('course-recommendation')" class="btn">Find Courses</a>
+            </div>
+
+            <div class="card">
+                <h3>🏫 College Finder</h3>
+                <p>Find colleges based on course, location, fees, and entrance exams.</p>
+                <a href="#" onclick="showApiInfo('college-recommendation')" class="btn">Find Colleges</a>
+            </div>
+
+            <div class="card">
+                <h3>📝 Exam Guidance</h3>
+                <p>Get entrance exam details and preparation roadmaps for your career.</p>
+                <a href="#" onclick="showApiInfo('exam-guidance')" class="btn">Exam Guide</a>
+            </div>
+
+            <div class="card">
+                <h3>🔮 Career Simulator</h3>
+                <p>Visualize your step-by-step career path from where you are now.</p>
+                <a href="#" onclick="showApiInfo('career-simulation')" class="btn">Simulate Career</a>
+            </div>
+
+            <div class="card">
+                <h3>👥 Career Twin</h3>
+                <p>Predict multiple possible career futures based on your profile.</p>
+                <a href="#" onclick="showApiInfo('career-twin')" class="btn">Find Your Twin</a>
+            </div>
+
+            <div class="card">
+                <h3>📊 Skill Demand Insights</h3>
+                <p>See top skills in demand, fastest growing careers, and market trends.</p>
+                <a href="#" onclick="showApiInfo('skill-demand')" class="btn">View Insights</a>
+            </div>
+
+            <div class="card">
+                <h3>🗺️ Learning Roadmap</h3>
+                <p>Get a structured, phased learning plan for your target career.</p>
+                <a href="#" onclick="showApiInfo('learning-roadmap')" class="btn">Get Roadmap</a>
+            </div>
+
+            <div class="card">
+                <h3>📄 Resume Builder</h3>
+                <p>Generate resume drafts, LinkedIn suggestions, and portfolio tips.</p>
+                <a href="#" onclick="showApiInfo('resume-builder')" class="btn">Build Resume</a>
+            </div>
+
+            <div class="card">
+                <h3>🗺️ Career Map</h3>
+                <p>Explore career details: skills, salary, demand, and growth paths.</p>
+                <a href="#" onclick="showApiInfo('career-map')" class="btn">View Map</a>
+            </div>
         </div>
+
+        <!-- API Info Modal -->
+        <div id="apiModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+            <div style="background:white; max-width:600px; margin:80px auto; padding:30px; border-radius:10px; max-height:80vh; overflow-y:auto;">
+                <h3 id="modalTitle" style="margin-bottom:15px; color:#333;"></h3>
+                <pre id="modalContent" style="background:#f5f7fa; padding:15px; border-radius:5px; white-space:pre-wrap; font-size:13px;"></pre>
+                <button onclick="document.getElementById('apiModal').style.display='none'" style="margin-top:15px; background:#667eea; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">Close</button>
+            </div>
+        </div>
+
+        <script>
+        function showApiInfo(endpoint) {
+            var modal = document.getElementById('apiModal');
+            var title = document.getElementById('modalTitle');
+            var content = document.getElementById('modalContent');
+            title.textContent = 'API: /api/' + endpoint;
+            content.textContent = 'Loading...';
+            modal.style.display = 'block';
+
+            var method = 'POST';
+            var body = '{}';
+            if (endpoint === 'skill-demand') {
+                method = 'GET';
+                body = null;
+            }
+
+            var opts = {method: method, headers: {'Content-Type': 'application/json'}};
+            if (body) opts.body = body;
+
+            fetch('/api/' + endpoint, opts)
+                .then(function(r) { return r.json(); })
+                .then(function(data) { content.textContent = JSON.stringify(data, null, 2); })
+                .catch(function(e) { content.textContent = 'Error: ' + e.message; });
+        }
+        </script>
     </div>
 </body>
 </html>
