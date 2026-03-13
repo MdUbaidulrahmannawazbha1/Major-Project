@@ -1,0 +1,147 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Career Switch - Career Platform</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+        .navbar { background: #667eea; color: white; padding: 20px 0; }
+        .navbar-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { font-size: 24px; }
+        .navbar a { color: white; text-decoration: none; margin-left: 20px; }
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 24px; }
+        h2 { color: #333; margin-bottom: 8px; }
+        p.sub { color: #666; margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; color: #444; }
+        input, select { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px; font-size: 15px; margin-bottom: 16px; }
+        .btn { background: #667eea; color: white; border: none; padding: 12px 28px; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        .btn:hover { background: #764ba2; }
+        .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .example-card { border: 1px solid #e0e4f5; border-radius: 8px; padding: 12px 16px; cursor: pointer; }
+        .example-card:hover { border-color: #667eea; background: #f0f4ff; }
+        .example-from { font-size: 13px; color: #888; }
+        .example-to { font-size: 15px; font-weight: 600; color: #667eea; }
+        .monthly-row { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid #f0f0f0; }
+        .month-tag { background: #667eea; color: white; min-width: 70px; height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+        .summary-bar { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 22px 28px; border-radius: 12px; margin-bottom: 20px; }
+        .back-link { color: #667eea; text-decoration: none; font-size: 14px; }
+        .result-section { display: none; }
+        .arrow { font-size: 20px; color: #667eea; display: inline; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-container">
+            <h1>AI Career Navigation</h1>
+            <div><a href="/dashboard">Dashboard</a><a href="/logout">Logout</a></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="/dashboard" class="back-link">â† Back to Dashboard</a><br><br>
+
+        <div class="card">
+            <h2>Lifelong Learning & Career Switch</h2>
+            <p class="sub">Want to move into a new field? Get a month-by-month action plan for your career switch.</p>
+
+            <h4 style="margin-bottom:12px; color:#555;">Popular Switches</h4>
+            <div class="example-grid">
+                <div class="example-card" onclick="fillExample('Mechanical Engineering', 'AI Engineer')">
+                    <div class="example-from">From: Mechanical Engineer</div>
+                    <div class="example-to">â†’ AI Engineer</div>
+                </div>
+                <div class="example-card" onclick="fillExample('Finance', 'Data Scientist')">
+                    <div class="example-from">From: Finance Professional</div>
+                    <div class="example-to">â†’ Data Scientist</div>
+                </div>
+                <div class="example-card" onclick="fillExample('Healthcare', 'Health Data Scientist')">
+                    <div class="example-from">From: Healthcare</div>
+                    <div class="example-to">â†’ Health Data Scientist</div>
+                </div>
+                <div class="example-card" onclick="fillExample('Marketing', 'Product Manager')">
+                    <div class="example-from">From: Marketing</div>
+                    <div class="example-to">â†’ Product Manager</div>
+                </div>
+            </div>
+
+            <label>Current Career / Domain</label>
+            <input type="text" id="currentCareer" value="{{ current_career }}" placeholder="e.g. Mechanical Engineering, Finance, Marketing">
+
+            <label>Target Career</label>
+            <input type="text" id="targetCareer" placeholder="e.g. AI Engineer, Data Scientist, Product Manager">
+
+            <label>Current Skills (comma-separated)</label>
+            <input type="text" id="skills" placeholder="e.g. AutoCAD, SolidWorks, Project Management">
+
+            <button class="btn" onclick="getSwitchRoadmap()">Generate Switch Roadmap</button>
+        </div>
+
+        <div class="result-section" id="resultSection">
+            <div class="summary-bar" id="summaryBar"></div>
+            <div class="card" id="roadmapCards"></div>
+        </div>
+    </div>
+
+    <script>
+    function fillExample(from, to) {
+        document.getElementById('currentCareer').value = from;
+        document.getElementById('targetCareer').value = to;
+    }
+
+    async function getSwitchRoadmap() {
+        const payload = {
+            current_career: document.getElementById('currentCareer').value,
+            target_career: document.getElementById('targetCareer').value,
+            skills: document.getElementById('skills').value.split(',').map(s=>s.trim()).filter(Boolean),
+        };
+
+        const resp = await fetch('/api/career-switch-roadmap', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+
+        if (data.type === 'career_switch') {
+            document.getElementById('summaryBar').innerHTML = `
+                <div style="font-size:13px; opacity:0.85; margin-bottom:4px;">Career Switch Roadmap</div>
+                <div style="font-size:22px; font-weight:700; margin-bottom:8px;">${data.from} â†’ ${data.to}</div>
+                <div style="font-size:15px; opacity:0.9;">${data.total_months}-month plan Â· ${data.message}</div>`;
+
+            document.getElementById('roadmapCards').innerHTML = `
+                <h3 style="margin-bottom:16px;">Your Month-by-Month Action Plan</h3>` +
+                data.monthly_roadmap.map(step => `
+                <div class="monthly-row">
+                    <div class="month-tag">Month ${step.month}</div>
+                    <div style="padding-top:4px; color:#444; font-size:15px;">${step.focus}</div>
+                </div>`).join('');
+        } else {
+            // Phased roadmap fallback
+            document.getElementById('summaryBar').innerHTML = `
+                <div style="font-size:22px; font-weight:700;">${data.career_goal}</div>
+                <div style="opacity:0.9; margin-top:6px;">${data.message}</div>`;
+
+            document.getElementById('roadmapCards').innerHTML = `
+                <h3 style="margin-bottom:16px;">Learning Roadmap</h3>` +
+                (data.phases || []).map(p => `
+                <div class="monthly-row">
+                    <div class="month-tag">Phase ${p.phase}</div>
+                    <div>
+                        <strong style="color:#333;">${p.title}</strong> â€” ${p.duration}<br>
+                        <span style="font-size:13px; color:#666;">${p.topics.join(' Â· ')}</span>
+                    </div>
+                </div>`).join('');
+        }
+
+        document.getElementById('resultSection').style.display = 'block';
+        document.getElementById('resultSection').scrollIntoView({behavior:'smooth'});
+    }
+    </script>
+</body>
+</html>
+
+
+
+

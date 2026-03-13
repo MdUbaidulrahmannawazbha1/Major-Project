@@ -1,0 +1,113 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Skill Gap Analyzer - Secure Career System</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+        .navbar { background: #667eea; color: white; padding: 20px 0; }
+        .navbar-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { font-size: 24px; }
+        .navbar a { color: white; text-decoration: none; margin-left: 20px; }
+        .navbar a:hover { opacity: 0.8; }
+        .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); margin-bottom: 20px; }
+        h2 { color: #333; margin-bottom: 20px; }
+        .ai-badge { display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 15px; }
+        .gap-meter { background: #e0e0e0; border-radius: 10px; height: 24px; overflow: hidden; margin: 10px 0 20px 0; }
+        .gap-fill { height: 100%; border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; color: white; font-size: 13px; font-weight: 600; }
+        .gap-fill.low { background: linear-gradient(90deg, #4caf50, #66bb6a); }
+        .gap-fill.medium { background: linear-gradient(90deg, #ff9800, #ffa726); }
+        .gap-fill.high { background: linear-gradient(90deg, #f44336, #e57373); }
+        .skill-list { list-style: none; padding: 0; }
+        .skill-item { padding: 12px 15px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+        .skill-item:last-child { border-bottom: none; }
+        .skill-name { font-weight: 600; color: #333; }
+        .course-link { color: #667eea; font-size: 14px; }
+        .empty-state { text-align: center; padding: 40px; color: #888; }
+        .btn { display: inline-block; background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; }
+        .btn:hover { background: #764ba2; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .stat { background: #f5f7fa; padding: 15px; border-radius: 8px; text-align: center; }
+        .stat .label { color: #888; font-size: 13px; }
+        .stat .value { font-size: 24px; font-weight: bold; color: #667eea; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-container">
+            <h1>ðŸ” AI Skill Gap Analyzer</h1>
+            <div>
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        {% if gap_data %}
+        <div class="card">
+            <span class="ai-badge">ðŸ§  AI Powered</span>
+            <h2>Skill Gap Analysis for {{ gap_data.career_name }}</h2>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="label">Missing Skills</div>
+                    <div class="value">{{ gap_data.missing_skills|length }}</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Gap Score</div>
+                    <div class="value">{{ (gap_data.gap_score * 100)|round(1) }}%</div>
+                </div>
+            </div>
+
+            <p><strong>Skill Gap Level:</strong></p>
+            {% set gap_pct = (gap_data.gap_score * 100)|round(1) %}
+            <div class="gap-meter">
+                <div class="gap-fill {% if gap_pct < 40 %}low{% elif gap_pct < 70 %}medium{% else %}high{% endif %}" style="width: {{ gap_pct }}%;">
+                    {{ gap_pct }}%
+                </div>
+            </div>
+        </div>
+
+        {% if gap_data.recommendations %}
+        <div class="card">
+            <h2>ðŸ“š Recommended Courses</h2>
+            <ul class="skill-list">
+                {% for rec in gap_data.recommendations %}
+                <li class="skill-item">
+                    <span class="skill-name">{{ rec.skill|capitalize }}</span>
+                    <span class="course-link">{{ rec.course }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <div class="card" style="text-align: center; color: #4caf50;">
+            <h3>ðŸŽ‰ No Skill Gaps Found!</h3>
+            <p>You have all the skills needed for your recommended career path.</p>
+        </div>
+        {% endif %}
+
+        <div class="card" style="text-align: center;">
+            <a href="{{ url_for('ai_career_recommendation') }}" class="btn">ðŸ¤– Career Recommendation</a>
+            <a href="{{ url_for('progress_tracking') }}" class="btn">ðŸ“ˆ Track Progress</a>
+        </div>
+        {% else %}
+        <div class="card empty-state">
+            <h2>No Skill Gap Analysis Yet</h2>
+            <p>Take an assessment to get your AI-powered skill gap analysis.</p>
+            <br>
+            <a href="{{ url_for('assessment') }}" class="btn">Take Assessment</a>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
+
+
+
+

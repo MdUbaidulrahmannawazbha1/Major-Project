@@ -21,6 +21,12 @@ class User(UserMixin, db.Model):
     last_failed_at = db.Column(db.DateTime)
     points = db.Column(db.Integer, default=0)
     badges = db.Column(db.Text)
+    # Universal career navigation fields
+    education_level = db.Column(db.String(50))   # School, PUC, Undergraduate, Postgraduate, PhD, Professional
+    career_goal = db.Column(db.String(100))
+    interests = db.Column(db.Text)
+    skills = db.Column(db.Text)
+    experience_level = db.Column(db.String(50))  # fresher, junior, mid, senior, expert
 
     def set_password(self, password: str):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -190,6 +196,26 @@ class SkillProgress(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+# AI Results - stores AI engine predictions linked to assessments
+class AIResult(db.Model):
+    __tablename__ = 'ai_results'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    assessment_id = db.Column(db.Integer, db.ForeignKey('assessments.id'))
+    career_id = db.Column(db.Integer, nullable=False)
+    career_name = db.Column(db.String(100), nullable=False)
+    confidence = db.Column(db.Float)
+    domain_scores = db.Column(db.Text)  # JSON: {"technology": x, "finance": y, "healthcare": z}
+    skill_gaps = db.Column(db.Text)  # JSON list of missing skills
+    gap_score = db.Column(db.Float)  # 0.0 (no gaps) to 1.0 (all missing)
+    placement_probability = db.Column(db.Float)
+    placement_factors = db.Column(db.Text)  # JSON dict of factor breakdown
+    job_recommendations = db.Column(db.Text)  # JSON list of matched jobs
+    roadmap_data = db.Column(db.Text)  # JSON: milestones, certifications, timeline
+    certification_suggestions = db.Column(db.Text)  # JSON list of suggested certs
+    mentorship_scores = db.Column(db.Text)  # JSON list of mentor match scores
+    portfolio_feedback = db.Column(db.Text)  # JSON dict of portfolio feedback
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+

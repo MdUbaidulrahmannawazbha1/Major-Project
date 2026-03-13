@@ -1,0 +1,157 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
+
+:root {
+    --ui-ink: #0f172a;
+    --ui-ink-soft: #475569;
+    --ui-paper: #fffdfa;
+    --ui-line: #e6dfd6;
+    --ui-accent: #ea580c;
+    --ui-accent-2: #fb923c;
+    --ui-sky: #0369a1;
+    --ui-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+}
+
+body {
+    font-family: 'Outfit', sans-serif !important;
+    color: var(--ui-ink);
+    background:
+        radial-gradient(circle at 6% 10%, rgba(234, 88, 12, 0.11), transparent 28%),
+        radial-gradient(circle at 92% 22%, rgba(14, 165, 233, 0.1), transparent 30%),
+        linear-gradient(180deg, #f8f6f3 0%, #f0ece6 100%) !important;
+}
+
+h1, h2, h3, h4 {
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+.navbar,
+nav {
+    background: rgba(250, 246, 241, 0.92) !important;
+    border-bottom: 1px solid var(--ui-line);
+    backdrop-filter: blur(8px);
+}
+
+.navbar h1,
+nav h1,
+nav a,
+.navbar a {
+    color: var(--ui-ink) !important;
+}
+
+.navbar a,
+nav a {
+    border: 1px solid var(--ui-line);
+    border-radius: 999px;
+    padding: 7px 12px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.66);
+}
+
+.container,
+.assessment,
+.profile-card,
+.result-card,
+.card,
+.empty-state,
+.update-form,
+.month-card,
+.hero-card,
+.summary-bar,
+.job-card,
+.mentor-card,
+.connection-item,
+.notif-item,
+.portfolio-item,
+.skill-item,
+.cert-item,
+.info-box,
+.browse-card,
+.alt-card,
+.step-box,
+.twin-card,
+.college-card,
+.exam-card {
+    border: 1px solid var(--ui-line) !important;
+    box-shadow: var(--ui-shadow) !important;
+    border-radius: 14px !important;
+}
+
+.card,
+.assessment,
+.profile-card,
+.empty-state,
+.result-card,
+.update-form,
+.month-card,
+.hero-card,
+.summary-bar,
+.job-card,
+.mentor-card,
+.connection-item,
+.notif-item,
+.portfolio-item,
+.skill-item,
+.cert-item,
+.info-box,
+.browse-card,
+.alt-card,
+.step-box,
+.twin-card,
+.college-card,
+.exam-card {
+    background: var(--ui-paper) !important;
+}
+
+button,
+.btn,
+input[type='submit'],
+a.btn,
+.btn-link {
+    background: linear-gradient(110deg, var(--ui-accent), var(--ui-accent-2)) !important;
+    color: #fff !important;
+    border: none;
+    border-radius: 10px !important;
+    font-weight: 700;
+}
+
+input,
+select,
+textarea {
+    border: 1px solid #d8dbe1 !important;
+    border-radius: 10px !important;
+    font-family: 'Outfit', sans-serif;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--ui-accent-2) !important;
+    box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.2) !important;
+}
+
+.badge,
+.ai-badge,
+.month-tag,
+.result-badge,
+.meta-pill,
+.rank-badge,
+.notif-type,
+.stream-badge,
+.phase-duration,
+.months-badge {
+    background: linear-gradient(110deg, var(--ui-sky), #0284c7) !important;
+    color: #fff !important;
+}
+
+@media (max-width: 768px) {
+    .container,
+    .assessment,
+    .profile-card,
+    .card {
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+    }
+}

@@ -1,0 +1,145 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Recommendation - Career Platform</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+        .navbar { background: #667eea; color: white; padding: 20px 0; }
+        .navbar-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { font-size: 24px; }
+        .navbar a { color: white; text-decoration: none; margin-left: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 24px; }
+        h2 { color: #333; margin-bottom: 8px; }
+        p.sub { color: #666; margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; color: #444; }
+        input, select { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px; font-size: 15px; margin-bottom: 16px; }
+        .btn { background: #667eea; color: white; border: none; padding: 12px 28px; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        .btn:hover { background: #764ba2; }
+        .college-card { border: 1px solid #e0e4f5; border-radius: 10px; padding: 20px; margin-bottom: 16px; background: #fafbff; }
+        .college-card:hover { border-color: #667eea; box-shadow: 0 4px 12px rgba(102,126,234,0.15); }
+        .ranking-badge { background: #667eea; color: white; border-radius: 50%; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; float: right; font-size: 16px; }
+        .tag { display: inline-block; background: #eef2ff; color: #667eea; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin: 2px; }
+        .gov-tag { background: #e6f4ea; color: #2d7a41; }
+        .private-tag { background: #fff3e0; color: #bf6000; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 12px; }
+        .info-item label { font-size: 12px; color: #888; margin-bottom: 2px; }
+        .info-item span { font-size: 14px; color: #333; font-weight: 600; }
+        .back-link { color: #667eea; text-decoration: none; font-size: 14px; }
+        .results-header { color: #555; font-size: 15px; margin-bottom: 16px; }
+        .result-section { display: none; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-container">
+            <h1>AI Career Navigation</h1>
+            <div>
+                <a href="/dashboard">Dashboard</a>
+                <a href="/profile">Profile</a>
+                <a href="/logout">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="/dashboard" class="back-link">â† Back to Dashboard</a><br><br>
+        <div class="card">
+            <h2>College & University Recommender</h2>
+            <p class="sub">Find the right college for your course across India â€” filter by location, fees, and type.</p>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div>
+                    <label>Course</label>
+                    <select id="course">
+                        <option value="B.Tech">B.Tech</option>
+                        <option value="BCA">BCA</option>
+                        <option value="B.Sc">B.Sc</option>
+                        <option value="MBBS">MBBS</option>
+                        <option value="BBA">BBA</option>
+                        <option value="B.Com">B.Com</option>
+                        <option value="Law (LLB)">Law / LLB</option>
+                        <option value="Design">Design</option>
+                        <option value="Animation">Animation</option>
+                        <option value="MBA">MBA</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Location Preference (City / State)</label>
+                    <input type="text" id="location" placeholder="e.g. Bangalore, Karnataka">
+                </div>
+                <div>
+                    <label>Max Annual Fees (â‚¹)</label>
+                    <input type="number" id="maxFees" placeholder="e.g. 500000">
+                </div>
+                <div>
+                    <label>College Type</label>
+                    <select id="type">
+                        <option value="">Any</option>
+                        <option value="Government">Government</option>
+                        <option value="Private">Private</option>
+                        <option value="Deemed">Deemed</option>
+                        <option value="Government-Aided">Government-Aided</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn" onclick="getCollegeRec()">Find Colleges</button>
+        </div>
+
+        <div class="result-section" id="resultSection">
+            <p class="results-header" id="resultsHeader"></p>
+            <div id="collegeList"></div>
+        </div>
+    </div>
+
+    <script>
+    async function getCollegeRec() {
+        const payload = {
+            course: document.getElementById('course').value,
+            location_preference: document.getElementById('location').value || null,
+            max_fees_per_year: parseFloat(document.getElementById('maxFees').value) || null,
+            college_type: document.getElementById('type').value || null,
+        };
+
+        const resp = await fetch('/api/college-recommendation', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+
+        document.getElementById('resultsHeader').textContent = `${data.total_found} college(s) found for ${data.course}`;
+
+        document.getElementById('collegeList').innerHTML = data.colleges.map((c, i) => {
+            const typeClass = c.type === 'Government' ? 'gov-tag' : 'private-tag';
+            const tags = (c.tags||[]).map(t => `<span class="tag">${t}</span>`).join('');
+            const exams = (c.entrance_exams||[]).join(', ');
+            const fees = 'â‚¹' + (c.fees_per_year/1000).toFixed(0) + 'K/yr';
+
+            return `<div class="college-card">
+                <span class="ranking-badge">#${i+1}</span>
+                <h3 style="color:#333; margin-bottom:6px;">${c.name}</h3>
+                <span class="tag ${typeClass}">${c.type}</span>
+                ${tags}
+                <div class="info-grid">
+                    <div class="info-item"><label>Annual Fees</label><br><span>${fees}</span></div>
+                    <div class="info-item"><label>Location</label><br><span>${(c.locations||[]).join(', ')}</span></div>
+                    <div class="info-item"><label>Entrance Exams</label><br><span style="font-size:13px; font-weight:400;">${exams}</span></div>
+                </div>
+                <p style="font-size:13px; color:#666; margin-top:10px;"><strong>Eligibility:</strong> ${c.eligibility}</p>
+            </div>`;
+        }).join('');
+
+        document.getElementById('resultSection').style.display = 'block';
+        document.getElementById('resultSection').scrollIntoView({behavior:'smooth'});
+    }
+    </script>
+</body>
+</html>
+
+
+
+

@@ -166,16 +166,20 @@ def chatbot_response(query, user_profile=None):
     """Full LLM-powered career counselor. Returns reply string or None."""
     context = ""
     if user_profile:
-        context = (
-            f"User context — Career path: {user_profile.get('career_path', 'unknown')}; "
-            f"Skills: {user_profile.get('skills', 'not provided')}; "
-            f"CGPA: {user_profile.get('cgpa', 'not provided')}; "
-            f"Latest assessment: {user_profile.get('result', 'not taken')}."
-        )
+        parts = [
+            f"Career path: {user_profile.get('career_path') or user_profile.get('career_goal') or 'unknown'}",
+            f"Education: {user_profile.get('education_level') or 'not specified'}",
+            f"Experience: {user_profile.get('experience_level') or 'not specified'}",
+            f"Skills: {user_profile.get('skills') or 'not provided'}",
+            f"Interests: {user_profile.get('interests') or 'not provided'}",
+            f"CGPA: {user_profile.get('cgpa') or 'not provided'}",
+        ]
+        context = "User context — " + "; ".join(parts) + "."
     system = (
         "You are an AI career counselor embedded in the Secure Career System platform. "
-        "Help students with career advice, skill building, job search, resume tips, and interview prep. "
-        "Be concise, helpful, and encouraging. Keep replies under 120 words."
+        "Help students at every stage — from Class 10 stream choice to PhD research guidance. "
+        "Tailor advice to education level, career goal, and interests. "
+        "Be concise, helpful, and encouraging. Keep replies under 150 words."
     )
     if context:
         system += f" {context}"

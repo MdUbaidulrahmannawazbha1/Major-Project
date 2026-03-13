@@ -11,22 +11,29 @@ from sklearn.preprocessing import StandardScaler
 
 
 def generate_synthetic(path='data.csv', n=1000):
-    """Generate fallback synthetic training data when real data is unavailable."""
+    # Create a deterministic synthetic dataset for local training/testing.
     np.random.seed(0)
-    X = np.random.randint(0, 5, size=(n, 10))
-    score = X.sum(axis=1)
-    # 3-class target aligned with app mapping: 0=Tech, 1=Finance, 2=Healthcare
-    y = np.where(score < 15, 0, np.where(score < 28, 1, 2))
-    df = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(X.shape[1])])
+    X = np.random.randint(0, 5, size=(n, 10)).astype(float)
+
+    # Weighted score to derive a target class in {0,1,2}.
+    weighted_sum = (
+        2.0 * X[:, 0] + 2.0 * X[:, 1] +
+        1.5 * X[:, 3] + 1.8 * X[:, 5] +
+        1.2 * X[:, 7] + 1.0 * X[:, 9]
+    )
+    thresholds = np.quantile(weighted_sum, [0.33, 0.66])
+    y = np.digitize(weighted_sum, thresholds)
+
+    columns = [f'q{i}' for i in range(1, 11)]
+    df = pd.DataFrame(X, columns=columns)
     df['target'] = y
     df.to_csv(path, index=False)
     return path
 
 
-def train(data_path='data.csv', model_path='ai_model.pkl', scaler_path='encoder.pkl', features_path='features.json'):
-    """Train and persist the career prediction model artifacts."""
+def train(data_path='data.csv'):
     if not os.path.exists(data_path):
-        print('No data.csv found, generating synthetic dataset...')
+        print(f'No {data_path} found, generating synthetic dataset...')
         generate_synthetic(data_path)
 
     df = pd.read_csv(data_path)
@@ -49,20 +56,24 @@ def train(data_path='data.csv', model_path='ai_model.pkl', scaler_path='encoder.
 
     y_pred = model.predict(X_test_scaled)
     accuracy = accuracy_score(y_test, y_pred)
-    report = classification_report(y_test, y_pred, zero_division=0)
-
-    joblib.dump(model, model_path)
-    joblib.dump(scaler, scaler_path)
-    with open(features_path, 'w', encoding='utf-8') as f:
-        json.dump(list(X.columns), f)
-
     print(f'Model Accuracy: {accuracy:.2f}')
-    print(f'Classification Report:\n{report}')
-    print(f'Model trained and saved: {model_path}, {scaler_path}, {features_path}')
+    print(classification_report(y_test, y_pred))
 
+    # save artifacts
+    os.makedirs('models', exist_ok=True)
+    joblib.dump(model, 'ai_model.pkl')
+    joblib.dump(scaler, 'encoder.pkl')
+
+    feature_names = [f for f in df.drop(columns=['target']).columns]
+    with open('features.json', 'w') as f:
+        json.dump(feature_names, f)
+
+    print('Model trained and saved: ai_model.pkl, encoder.pkl, features.json')
     return {
         'accuracy': float(accuracy),
-        'features': list(X.columns),
+        'model_path': 'ai_model.pkl',
+        'encoder_path': 'encoder.pkl',
+        'features_path': 'features.json',
     }
 
 

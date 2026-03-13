@@ -1,0 +1,151 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Recommendation - Career Platform</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+        .navbar { background: #667eea; color: white; padding: 20px 0; }
+        .navbar-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { font-size: 24px; }
+        .navbar a { color: white; text-decoration: none; margin-left: 20px; }
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 24px; }
+        h2 { color: #333; margin-bottom: 8px; }
+        p.sub { color: #666; margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; color: #444; }
+        input, select, textarea { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px; font-size: 15px; margin-bottom: 16px; }
+        .btn { background: #667eea; color: white; border: none; padding: 12px 28px; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        .btn:hover { background: #764ba2; }
+        .highlight { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 24px; border-radius: 10px; margin-bottom: 20px; }
+        .highlight h3 { font-size: 26px; margin-bottom: 8px; }
+        .result-box { display: none; }
+        .alt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 16px; }
+        .alt-card { background: #f8f9ff; border: 1px solid #e0e4f5; padding: 16px; border-radius: 8px; }
+        .alt-card h4 { color: #667eea; margin-bottom: 6px; }
+        .tag { display: inline-block; background: #eef2ff; color: #667eea; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin: 2px; }
+        .back-link { color: #667eea; text-decoration: none; font-size: 14px; }
+        ul.info-list { list-style: none; padding: 0; }
+        ul.info-list li::before { content: "âœ“ "; color: #667eea; }
+        ul.info-list li { margin-bottom: 5px; color: #555; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-container">
+            <h1>AI Career Navigation</h1>
+            <div>
+                <a href="/dashboard">Dashboard</a>
+                <a href="/profile">Profile</a>
+                <a href="/logout">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="/dashboard" class="back-link">â† Back to Dashboard</a><br><br>
+        <div class="card">
+            <h2>Course Recommendation (After Class 12 / PUC)</h2>
+            <p class="sub">Get personalised undergraduate course suggestions based on your stream, marks, and interests.</p>
+
+            <label>Your Stream (Class 12)</label>
+            <select id="stream">
+                <option value="Science">Science (PCM / PCB)</option>
+                <option value="Commerce">Commerce</option>
+                <option value="Arts">Arts / Humanities</option>
+                <option value="Diploma">Diploma</option>
+            </select>
+
+            <label>Aggregate Marks %</label>
+            <input type="number" id="marks" min="0" max="100" value="75" placeholder="e.g. 78">
+
+            <label>Interests (comma-separated)</label>
+            <input type="text" id="interests" placeholder="e.g. programming, medicine, design">
+
+            <label>Skills (comma-separated)</label>
+            <input type="text" id="skills" placeholder="e.g. python, drawing, mathematics">
+
+            <button class="btn" onclick="getCourseRec()">Get Course Recommendation</button>
+
+            <div class="result-box" id="resultBox">
+                <br>
+                <div class="highlight">
+                    <p style="opacity:0.85; font-size:13px;">Primary Recommendation</p>
+                    <h3 id="primaryCourse"></h3>
+                    <p id="primaryDesc"></p>
+                    <br>
+                    <span id="primaryDuration" style="font-size:14px; opacity:0.9;"></span>
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    <span id="primarySalary" style="font-size:14px; opacity:0.9;"></span>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom:20px;">
+                    <div>
+                        <h4 style="margin-bottom:8px;">Entrance Exams</h4>
+                        <ul class="info-list" id="examList"></ul>
+                    </div>
+                    <div>
+                        <h4 style="margin-bottom:8px;">Career Opportunities</h4>
+                        <ul class="info-list" id="careerList"></ul>
+                    </div>
+                    <div>
+                        <h4 style="margin-bottom:8px;">Top Colleges</h4>
+                        <ul class="info-list" id="collegeList"></ul>
+                    </div>
+                </div>
+
+                <h4 style="margin-bottom:12px;">Other Eligible Courses</h4>
+                <div class="alt-grid" id="altGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    async function getCourseRec() {
+        const payload = {
+            stream: document.getElementById('stream').value,
+            marks_percentage: parseFloat(document.getElementById('marks').value) || 60,
+            interests: document.getElementById('interests').value.split(',').map(s=>s.trim()).filter(Boolean),
+            skills: document.getElementById('skills').value.split(',').map(s=>s.trim()).filter(Boolean),
+        };
+
+        const resp = await fetch('/api/course-recommendation', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+
+        if (!data.primary_recommendation) {
+            alert(data.message || 'No courses found. Try adjusting your marks or stream.');
+            return;
+        }
+
+        const p = data.primary_recommendation;
+        document.getElementById('primaryCourse').textContent = p.course;
+        document.getElementById('primaryDesc').textContent = p.description;
+        document.getElementById('primaryDuration').textContent = 'Duration: ' + p.duration;
+        document.getElementById('primarySalary').textContent = 'Salary: ' + p.salary_range;
+
+        document.getElementById('examList').innerHTML = (p.entrance_exams||[]).map(e=>`<li>${e}</li>`).join('');
+        document.getElementById('careerList').innerHTML = (p.careers||[]).map(c=>`<li>${c}</li>`).join('');
+        document.getElementById('collegeList').innerHTML = (p.top_colleges||[]).map(c=>`<li>${c}</li>`).join('');
+
+        document.getElementById('altGrid').innerHTML = data.alternatives.map(alt => `
+            <div class="alt-card">
+                <h4>${alt.course}</h4>
+                <span class="tag">${alt.duration}</span>
+                <div style="margin-top:6px; font-size:13px; color:#555;">${(alt.careers||[]).slice(0,2).join(', ')}</div>
+            </div>`).join('');
+
+        document.getElementById('resultBox').style.display = 'block';
+        document.getElementById('resultBox').scrollIntoView({behavior:'smooth'});
+    }
+    </script>
+</body>
+</html>
+
+
+
+
