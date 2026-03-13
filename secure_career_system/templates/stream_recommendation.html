@@ -1,0 +1,144 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Recommendation - Career Platform</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+        .navbar { background: #667eea; color: white; padding: 20px 0; }
+        .navbar-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { font-size: 24px; }
+        .navbar a { color: white; text-decoration: none; margin-left: 20px; }
+        .navbar a:hover { opacity: 0.8; }
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 24px; }
+        h2 { color: #333; margin-bottom: 8px; }
+        p.sub { color: #666; margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; color: #444; }
+        input, select, textarea { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px; font-size: 15px; margin-bottom: 16px; }
+        .btn { background: #667eea; color: white; border: none; padding: 12px 28px; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        .btn:hover { background: #764ba2; }
+        .result-box { background: #eef2ff; border-left: 4px solid #667eea; padding: 20px; border-radius: 8px; margin-top: 20px; display: none; }
+        .stream-badge { display: inline-block; background: #667eea; color: white; padding: 8px 20px; border-radius: 20px; font-size: 22px; font-weight: 700; margin-bottom: 16px; }
+        .score-bar-wrap { margin-bottom: 10px; }
+        .score-label { font-size: 14px; color: #444; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        .score-bar { background: #e2e8f0; border-radius: 8px; height: 12px; }
+        .score-fill { background: #667eea; height: 12px; border-radius: 8px; }
+        .career-list { columns: 2; gap: 12px; }
+        .career-list li { margin-bottom: 6px; color: #555; }
+        .back-link { color: #667eea; text-decoration: none; font-size: 14px; }
+        .back-link:hover { text-decoration: underline; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-container">
+            <h1>AI Career Navigation</h1>
+            <div>
+                <a href="/dashboard">Dashboard</a>
+                <a href="/profile">Profile</a>
+                <a href="/logout">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="/dashboard" class="back-link">â† Back to Dashboard</a>
+        <br><br>
+        <div class="card">
+            <h2>Stream Recommendation (After Class 10)</h2>
+            <p class="sub">Answer a few questions and we'll recommend the best stream for you â€” Science, Commerce, Arts, or Diploma.</p>
+
+            <label>Favourite Subjects (comma-separated, e.g. Mathematics, Biology)</label>
+            <input type="text" id="subjects" placeholder="e.g. Mathematics, Physics, Biology">
+
+            <label>Your Interests / Career Ideas (comma-separated)</label>
+            <input type="text" id="interests" placeholder="e.g. doctor, programmer, designer">
+
+            <label>Logical Reasoning Score (0â€“10)</label>
+            <input type="number" id="logic" min="0" max="10" value="6">
+
+            <label>Personality Traits (comma-separated)</label>
+            <input type="text" id="traits" placeholder="e.g. analytical, creative, hands-on">
+
+            <button class="btn" onclick="getRecommendation()">Get Stream Recommendation</button>
+
+            <div class="result-box" id="resultBox">
+                <p style="color:#666; font-size:13px;">Recommended Stream</p>
+                <span class="stream-badge" id="streamName"></span>
+                <p id="streamDesc" style="margin-bottom:16px; color: #444;"></p>
+
+                <h4 style="margin-bottom:10px;">Stream Scores</h4>
+                <div id="scoreBars"></div>
+
+                <div class="info-grid">
+                    <div>
+                        <h4>Subjects to Study</h4>
+                        <ul class="career-list" id="courseList"></ul>
+                    </div>
+                    <div>
+                        <h4>Career Possibilities</h4>
+                        <ul class="career-list" id="careerList"></ul>
+                    </div>
+                </div>
+
+                <div style="margin-top:16px; background:#f0f9ff; padding:14px; border-radius:6px;">
+                    <strong>Next Steps:</strong>
+                    <ul id="nextSteps" style="padding-left:18px; margin-top:6px;"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    async function getRecommendation() {
+        const subjects = document.getElementById('subjects').value.split(',').map(s => s.trim()).filter(Boolean);
+        const interests = document.getElementById('interests').value.split(',').map(s => s.trim()).filter(Boolean);
+        const logic = parseFloat(document.getElementById('logic').value) || 5;
+        const traits = document.getElementById('traits').value.split(',').map(s => s.trim()).filter(Boolean);
+
+        const payload = {
+            favorite_subjects: subjects,
+            interests: interests,
+            logical_reasoning_score: logic,
+            personality_traits: traits,
+        };
+
+        const resp = await fetch('/api/stream-recommendation', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+
+        document.getElementById('streamName').textContent = data.recommended_stream;
+        document.getElementById('streamDesc').textContent = data.stream_info.description;
+
+        // Score bars
+        const barsHtml = Object.entries(data.stream_scores).map(([stream, score]) => {
+            const pct = Math.min(100, Math.round(score));
+            return `<div class="score-bar-wrap">
+                <div class="score-label"><span>${stream}</span><span>${pct}%</span></div>
+                <div class="score-bar"><div class="score-fill" style="width:${pct}%"></div></div>
+            </div>`;
+        }).join('');
+        document.getElementById('scoreBars').innerHTML = barsHtml;
+
+        document.getElementById('courseList').innerHTML = data.stream_info.courses.map(c => `<li>${c}</li>`).join('');
+        document.getElementById('careerList').innerHTML = data.stream_info.careers.map(c => `<li>${c}</li>`).join('');
+        document.getElementById('nextSteps').innerHTML = data.stream_info.next_steps.map(s => `<li>${s}</li>`).join('');
+
+        document.getElementById('resultBox').style.display = 'block';
+        document.getElementById('resultBox').scrollIntoView({behavior: 'smooth'});
+    }
+    </script>
+</body>
+</html>
+
+
+
+

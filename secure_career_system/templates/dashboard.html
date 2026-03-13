@@ -1,129 +1,548 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Secure Career System</title>
-    <style>
+    <title>Dashboard - Universal AI Career Navigation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
+        :root {
+            --ink: #0f172a;
+            --ink-soft: #334155;
+            --paper: #fffdfa;
+            --line: #e6dfd6;
+            --accent: #ea580c;
+            --accent-soft: #ffedd5;
+            --teal: #0f766e;
+            --sky: #0369a1;
+            --mint: #e6fffb;
+            --shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
-        .navbar { background: #667eea; color: white; padding: 20px 0; }
-        .navbar-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
-        .navbar h1 { font-size: 24px; }
-        .navbar a { color: white; text-decoration: none; margin-left: 20px; }
-        .navbar a:hover { opacity: 0.8; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
-        .welcome { background: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); }
-        .welcome h2 { color: #333; margin-bottom: 10px; }
-        .welcome p { color: #666; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); text-align: center; cursor: pointer; transition: transform 0.3s; }
-        .card:hover { transform: translateY(-5px); }
-        .card h3 { color: #333; margin-bottom: 15px; }
-        .card p { color: #666; margin-bottom: 20px; }
-        .btn { display: inline-block; background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; }
-        .btn:hover { background: #764ba2; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 3% 8%, rgba(234, 88, 12, 0.18), transparent 26%),
+                radial-gradient(circle at 95% 30%, rgba(14, 165, 233, 0.14), transparent 30%),
+                linear-gradient(180deg, #f8f6f3 0%, #f0ece6 100%);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: rgba(250, 246, 241, 0.9);
+            border-bottom: 1px solid var(--line);
+            backdrop-filter: blur(8px);
+        }
+
+        .navbar-container {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .navbar h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 20px;
+            letter-spacing: 0.2px;
+        }
+
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .nav-links a {
+            color: var(--ink);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 7px 12px;
+            transition: all 0.2s;
+            background: rgba(255, 255, 255, 0.65);
+        }
+
+        .nav-links a:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .container {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 34px 20px 42px;
+        }
+
+        .welcome {
+            background: linear-gradient(120deg, #0f172a 10%, #0f766e 55%, #0284c7 100%);
+            color: white;
+            padding: 34px;
+            border-radius: 24px;
+            margin-bottom: 28px;
+            box-shadow: 0 20px 45px rgba(2, 8, 23, 0.28);
+            position: relative;
+            overflow: hidden;
+            animation: rise 520ms ease;
+        }
+
+        .welcome::before {
+            content: '';
+            position: absolute;
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            right: -90px;
+            top: -120px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.24), transparent 60%);
+        }
+
+        .welcome h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 32px;
+            margin-bottom: 8px;
+            letter-spacing: 0.2px;
+        }
+
+        .welcome p {
+            max-width: 780px;
+            opacity: 0.92;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .welcome-meta {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+            flex-wrap: wrap;
+        }
+
+        .meta-pill {
+            padding: 7px 13px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.28);
+        }
+
+        .journey-bar {
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+        }
+
+        .journey-bar h3 {
+            color: var(--ink-soft);
+            margin-bottom: 14px;
+            font-size: 16px;
+        }
+
+        .journey-stages {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+            gap: 10px;
+        }
+
+        .stage-link { text-decoration: none; }
+
+        .stage {
+            text-align: center;
+            padding: 12px 8px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            font-size: 13px;
+            color: var(--ink-soft);
+            transition: all 0.2s;
+            background: #ffffff;
+            height: 100%;
+        }
+
+        .stage:hover {
+            border-color: var(--sky);
+            color: var(--sky);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(3, 105, 161, 0.12);
+        }
+
+        .stage-icon {
+            font-size: 20px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 22px;
+            color: var(--ink);
+            margin: 34px 0 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, #cbd5e1, transparent);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 22px;
+            box-shadow: var(--shadow);
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            opacity: 0;
+            transform: translateY(14px);
+        }
+
+        .card.visible {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 350ms ease, transform 350ms ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 18px 35px rgba(15, 23, 42, 0.13);
+            border-color: #d6c7b1;
+        }
+
+        .card h3 {
+            color: var(--ink);
+            font-size: 17px;
+            line-height: 1.35;
+        }
+
+        .card p {
+            color: var(--ink-soft);
+            font-size: 14px;
+            line-height: 1.55;
+            margin-bottom: 4px;
+            flex: 1;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: fit-content;
+            background: linear-gradient(110deg, var(--accent), #fb923c);
+            color: white;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.1px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 10px 20px rgba(234, 88, 12, 0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 24px rgba(234, 88, 12, 0.3);
+        }
+
+        .card.ai { border-top: 4px solid var(--sky); }
+        .card.new { border-top: 4px solid var(--teal); background: linear-gradient(180deg, #ffffff, var(--mint)); }
+
+        .badge-new {
+            display: inline-block;
+            background: linear-gradient(110deg, #14b8a6, #0f766e);
+            color: white;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            margin-left: 6px;
+            vertical-align: middle;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 760px) {
+            .welcome { padding: 26px 20px; border-radius: 20px; }
+            .welcome h2 { font-size: 27px; }
+            .container { padding-top: 24px; }
+            .section-title { font-size: 20px; }
+            .grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
     <div class="navbar">
         <div class="navbar-container">
-            <h1>Career System</h1>
-            <div>
+            <h1>Universal AI Career Navigation</h1>
+            <div class="nav-links">
                 <a href="{{ url_for('profile') }}">Profile</a>
-                <a href="{{ url_for('notifications') }}">📬 Notifications</a>
+                <a href="{{ url_for('notifications') }}">Notifications</a>
                 <a href="{{ url_for('logout') }}">Logout</a>
             </div>
         </div>
     </div>
-    
+
     <div class="container">
         <div class="welcome">
-            <h2>Welcome, {{ user }}! 👋</h2>
-            <p>Explore your career journey with our comprehensive platform.</p>
+            <h2>Welcome, {{ user }}!</h2>
+            <p>Your complete AI-powered career navigation platform â€” from Class 10 to PhD and beyond.</p>
+            <div class="welcome-meta">
+                <span class="meta-pill">Career Assessment Ready</span>
+                <span class="meta-pill">AI-Powered Insights</span>
+                <span class="meta-pill">Personalised Roadmaps</span>
+            </div>
         </div>
-        
+
+        <!-- Journey Stage Bar -->
+        <div class="journey-bar">
+            <h3>Where are you in your journey? Quick links for your stage:</h3>
+            <div class="journey-stages">
+                <a href="{{ url_for('stream_recommendation_page') }}" class="stage-link">
+                    <div class="stage"><span class="stage-icon">ðŸ«</span>Class 10<br>Stream Choice</div>
+                </a>
+                <a href="{{ url_for('course_recommendation_page') }}" class="stage-link">
+                    <div class="stage"><span class="stage-icon">ðŸ“š</span>Class 12<br>Course Choice</div>
+                </a>
+                <a href="{{ url_for('college_recommendation_page') }}" class="stage-link">
+                    <div class="stage"><span class="stage-icon">ðŸŽ“</span>College<br>Selection</div>
+                </a>
+                <a href="{{ url_for('learning_roadmap_page') }}" class="stage-link">
+                    <div class="stage"><span class="stage-icon">ðŸ’»</span>Skill<br>Development</div>
+                </a>
+                <a href="{{ url_for('job_recommendations') }}" class="stage-link">
+                    <div class="stage"><span class="stage-icon">ðŸ’¼</span>Job<br>Search</div>
+                </a>
+                <a href="{{ url_for('career_switch_page') }}" class="stage-link">
+                    <div class="stage"><span class="stage-icon">ðŸ”„</span>Career<br>Switch</div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Core Features -->
+        <div class="section-title">Core Features</div>
         <div class="grid">
-            <!-- Core Features -->
             <div class="card">
-                <h3>📋 Take Assessment</h3>
-                <p>Answer a series of questions to determine your career path.</p>
+                <h3>ðŸ“‹ Take Assessment</h3>
+                <p>Answer questions to get your AI-powered career prediction, skill gap analysis, and placement probability.</p>
                 <a href="{{ url_for('assessment') }}" class="btn">Start Assessment</a>
             </div>
-            
+
             <div class="card">
-                <h3>📊 View Results</h3>
-                <p>Check your previous assessment results and recommendations.</p>
+                <h3>ðŸ“Š View Results</h3>
+                <p>Check your previous assessment results and AI career recommendations.</p>
                 <a href="{{ url_for('results') }}" class="btn">View Results</a>
             </div>
-            
+
             <div class="card">
-                <h3>👤 My Profile</h3>
-                <p>Update your profile information and preferences.</p>
+                <h3>ðŸ‘¤ My Profile</h3>
+                <p>Update your education level, career goal, skills, and interests to personalise your platform experience.</p>
                 <a href="{{ url_for('profile') }}" class="btn">Edit Profile</a>
             </div>
-            
-            <!-- Feature 1: Certifications -->
+
             <div class="card">
-                <h3>🏆 Certifications</h3>
-                <p>Showcase your professional certifications and achievements.</p>
+                <h3>ðŸ“„ Upload Resume</h3>
+                <p>Upload your resume for skill extraction, gap analysis, and career stage recommendations.</p>
+                <a href="{{ url_for('upload_resume') }}" class="btn">Upload Resume</a>
+            </div>
+
+            <div class="card">
+                <h3>ðŸ† Certifications</h3>
+                <p>Showcase your professional certifications and track expiry dates.</p>
                 <a href="{{ url_for('certifications') }}" class="btn">Manage Certs</a>
             </div>
-            
-            <!-- Feature 3: Career Roadmap -->
+
             <div class="card">
-                <h3>🚀 Career Roadmap</h3>
-                <p>Follow your personalized career progression path with milestones.</p>
-                <a href="{{ url_for('career_roadmap') }}" class="btn">View Roadmap</a>
-            </div>
-            
-            <!-- Feature 4: Job Recommendations -->
-            <div class="card">
-                <h3>💼 Job Recommendations</h3>
-                <p>Discover job opportunities matching your skills and career path.</p>
-                <a href="{{ url_for('job_recommendations') }}" class="btn">Explore Jobs</a>
-            </div>
-            
-            <!-- Feature 5: Portfolio -->
-            <div class="card">
-                <h3>🎨 Portfolio</h3>
-                <p>Showcase your projects, achievements, and work samples.</p>
+                <h3>ðŸŽ¨ Portfolio</h3>
+                <p>Showcase your projects, achievements, and work samples to potential employers.</p>
                 <a href="{{ url_for('portfolio') }}" class="btn">Build Portfolio</a>
             </div>
-            
-            <!-- Feature 6: Mentorship -->
+
             <div class="card">
-                <h3>👨‍🏫 Mentorship</h3>
-                <p>Connect with experienced mentors or become one yourself.</p>
-                <a href="{{ url_for('available_mentors') }}" class="btn">Find Mentors</a>
-            </div>
-            
-            <!-- Feature 7: Progress Tracking -->
-            <div class="card">
-                <h3>📈 Progress Tracking</h3>
-                <p>Monitor your skill development and learning progress with charts.</p>
+                <h3>ðŸ“ˆ Progress Tracking</h3>
+                <p>Monitor your skill development and learning progress with interactive charts.</p>
                 <a href="{{ url_for('progress_tracking') }}" class="btn">Track Progress</a>
             </div>
 
-            <!-- AI Modules -->
-            <div class="card" style="border-left: 4px solid #667eea;">
-                <h3>🤖 AI Career Recommendation</h3>
-                <p>Get AI-powered career predictions based on your assessment and profile.</p>
-                <a href="{{ url_for('ai_career_recommendation') }}" class="btn">View AI Recommendation</a>
+            <div class="card">
+                <h3>ðŸš€ Career Roadmap</h3>
+                <p>Follow your personalised career progression path with milestones and achievements.</p>
+                <a href="{{ url_for('career_roadmap') }}" class="btn">View Roadmap</a>
             </div>
 
-            <div class="card" style="border-left: 4px solid #667eea;">
-                <h3>🔍 AI Skill Gap Analyzer</h3>
-                <p>Discover missing skills for your predicted career with course recommendations.</p>
+            <div class="card">
+                <h3>ðŸ‘¨â€ðŸ« Mentorship</h3>
+                <p>Connect with experienced mentors or offer your expertise to others.</p>
+                <a href="{{ url_for('available_mentors') }}" class="btn">Find Mentors</a>
+            </div>
+        </div>
+
+        <!-- AI Analysis Modules -->
+        <div class="section-title">AI Analysis Modules</div>
+        <div class="grid">
+            <div class="card ai">
+                <h3>ðŸ¤– AI Career Recommendation</h3>
+                <p>Get AI-powered career predictions based on your assessment results and domain scores.</p>
+                <a href="{{ url_for('ai_career_recommendation') }}" class="btn">View Recommendation</a>
+            </div>
+
+            <div class="card ai">
+                <h3>ðŸ” AI Skill Gap Analyzer</h3>
+                <p>Discover missing skills for your predicted career with prioritised course recommendations.</p>
                 <a href="{{ url_for('ai_skill_gap') }}" class="btn">Analyze Gaps</a>
             </div>
 
-            <div class="card" style="border-left: 4px solid #667eea;">
-                <h3>📊 AI Placement Prediction</h3>
-                <p>See your AI-estimated placement probability and contributing factors.</p>
+            <div class="card ai">
+                <h3>ðŸ“Š AI Placement Prediction</h3>
+                <p>See your AI-estimated placement probability and the factors driving it.</p>
                 <a href="{{ url_for('ai_placement_prediction') }}" class="btn">View Prediction</a>
+            </div>
+
+            <div class="card ai">
+                <h3>ðŸ§¬ Career Twin Analysis<span class="badge-new">NEW</span></h3>
+                <p>Discover your multiple possible career futures with AI-computed compatibility scores.</p>
+                <a href="/career-twin" class="btn">Explore Twins</a>
+            </div>
+
+            <div class="card ai">
+                <h3>ðŸŽ¯ Career Simulator<span class="badge-new">NEW</span></h3>
+                <p>Generate a step-by-step career path from your current position to your dream career.</p>
+                <a href="/career-simulation" class="btn">Simulate Career</a>
+            </div>
+
+            <div class="card ai">
+                <h3>ðŸ’¡ AI Chatbot</h3>
+                <p>Get instant AI answers to your career questions â€” powered by LLM technology.</p>
+                <a href="{{ url_for('ai_career_recommendation') }}" class="btn">Chat with AI</a>
+            </div>
+        </div>
+
+        <!-- Universal Career Navigation (New Features) -->
+        <div class="section-title">Universal Career Navigation <span class="badge-new">NEW</span></div>
+        <div class="grid">
+            <div class="card new">
+                <h3>ðŸ« Stream Recommendation</h3>
+                <p>For Class 10 students â€” get personalised Science, Commerce, Arts, or Diploma stream guidance.</p>
+                <a href="/stream-recommendation" class="btn">Get Stream Advice</a>
+            </div>
+
+            <div class="card new">
+                <h3>ðŸŽ“ Course Recommendation</h3>
+                <p>For Class 12 / PUC students â€” find the best undergraduate course: B.Tech, MBBS, BBA, Law, and more.</p>
+                <a href="/course-recommendation" class="btn">Find Your Course</a>
+            </div>
+
+            <div class="card new">
+                <h3>ðŸ› College Recommender</h3>
+                <p>Discover IITs, NITs, REVA, Christ, and 100+ colleges filtered by course, location, and fees.</p>
+                <a href="/college-recommendation" class="btn">Find Colleges</a>
+            </div>
+
+            <div class="card new">
+                <h3>ðŸ“ Entrance Exam Guidance</h3>
+                <p>JEE, NEET, CAT, CLAT, UPSC â€” get exam-specific preparation roadmaps and resources.</p>
+                <a href="/exam-guidance" class="btn">Exam Guidance</a>
+            </div>
+
+            <div class="card new">
+                <h3>ðŸ—º Career Opportunity Map</h3>
+                <p>Explore any career in depth â€” required skills, salary, demand level, top companies, and growth path.</p>
+                <a href="/career-map" class="btn">Explore Careers</a>
+            </div>
+
+            <div class="card new">
+                <h3>ðŸ“– AI Learning Engine</h3>
+                <p>Get a structured, phase-by-phase personalised learning roadmap tailored to your career goal.</p>
+                <a href="/learning-roadmap" class="btn">Get Roadmap</a>
+            </div>
+
+            <div class="card new">
+                <h3>ðŸ“‹ Resume & Profile Builder</h3>
+                <p>Generate a resume draft, LinkedIn tips, and portfolio project ideas tailored to your profile.</p>
+                <a href="/resume-builder" class="btn">Build Resume</a>
+            </div>
+
+            <div class="card new">
+                <h3>ðŸ“Š Skill Demand Insights</h3>
+                <p>See the top in-demand global skills, fastest-growing careers, and industries at risk of automation.</p>
+                <a href="/skill-demand" class="btn">View Insights</a>
+            </div>
+
+            <div class="card new">
+                <h3>ðŸ”„ Career Switch Engine</h3>
+                <p>Switching from Mechanical to AI? Finance to Data Science? Get a month-by-month action plan.</p>
+                <a href="/career-switch" class="btn">Plan Switch</a>
+            </div>
+        </div>
+
+        <!-- Job & Mentorship -->
+        <div class="section-title">Jobs, Internships & Mentorship</div>
+        <div class="grid">
+            <div class="card">
+                <h3>ðŸ’¼ Job Recommendations</h3>
+                <p>Discover full-time job opportunities matched to your skills and predicted career path.</p>
+                <a href="{{ url_for('job_recommendations') }}" class="btn">Explore Jobs</a>
+            </div>
+
+            <div class="card new">
+                <h3>ðŸ”¬ Internship Finder<span class="badge-new">NEW</span></h3>
+                <p>Find internship, entry-level, and freelance opportunities via AI-powered matching.</p>
+                <a href="{{ url_for('job_recommendations') }}" class="btn">Find Internships</a>
+            </div>
+
+            <div class="card">
+                <h3>ðŸ¤ Mentorship Connections</h3>
+                <p>View your current mentorship relationships and upcoming sessions.</p>
+                <a href="{{ url_for('my_mentorship_connections') }}" class="btn">My Connections</a>
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                window.setTimeout(() => card.classList.add('visible'), index * 45);
+            });
+        });
+    </script>
 </body>
 </html>
+
+
+
+

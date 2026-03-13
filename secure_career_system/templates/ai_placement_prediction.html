@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Placement Prediction - Secure Career System</title>
-    <style>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
         .navbar { background: #667eea; color: white; padding: 20px 0; }
@@ -36,7 +37,7 @@
 <body>
     <div class="navbar">
         <div class="navbar-container">
-            <h1>📊 AI Placement Prediction</h1>
+            <h1>ðŸ“Š AI Placement Prediction</h1>
             <div>
                 <a href="{{ url_for('dashboard') }}">Dashboard</a>
                 <a href="{{ url_for('logout') }}">Logout</a>
@@ -47,7 +48,7 @@
     <div class="container">
         {% if placement_data %}
         <div class="card" style="text-align: center;">
-            <span class="ai-badge">🧠 AI Powered</span>
+            <span class="ai-badge">ðŸ§  AI Powered</span>
             <h2>Placement Probability</h2>
 
             {% set pct = (placement_data.probability * 100)|round(1) %}
@@ -99,9 +100,9 @@
         <div class="card" style="text-align: center;">
             <h3>Improve Your Placement Chances</h3>
             <p style="color: #666; margin-bottom: 15px;">Build skills and gain certifications to boost your placement probability.</p>
-            <a href="{{ url_for('ai_skill_gap') }}" class="btn">🔍 Skill Gap Analysis</a>
-            <a href="{{ url_for('certifications') }}" class="btn">🏆 Certifications</a>
-            <a href="{{ url_for('portfolio') }}" class="btn">🎨 Portfolio</a>
+            <a href="{{ url_for('ai_skill_gap') }}" class="btn">ðŸ” Skill Gap Analysis</a>
+            <a href="{{ url_for('certifications') }}" class="btn">ðŸ† Certifications</a>
+            <a href="{{ url_for('portfolio') }}" class="btn">ðŸŽ¨ Portfolio</a>
         </div>
         {% else %}
         <div class="card empty-state">
@@ -114,3 +115,7 @@
     </div>
 </body>
 </html>
+
+
+
+

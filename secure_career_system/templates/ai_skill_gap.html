@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Skill Gap Analyzer - Secure Career System</title>
-    <style>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
         .navbar { background: #667eea; color: white; padding: 20px 0; }
@@ -38,7 +39,7 @@
 <body>
     <div class="navbar">
         <div class="navbar-container">
-            <h1>🔍 AI Skill Gap Analyzer</h1>
+            <h1>ðŸ” AI Skill Gap Analyzer</h1>
             <div>
                 <a href="{{ url_for('dashboard') }}">Dashboard</a>
                 <a href="{{ url_for('logout') }}">Logout</a>
@@ -49,7 +50,7 @@
     <div class="container">
         {% if gap_data %}
         <div class="card">
-            <span class="ai-badge">🧠 AI Powered</span>
+            <span class="ai-badge">ðŸ§  AI Powered</span>
             <h2>Skill Gap Analysis for {{ gap_data.career_name }}</h2>
 
             <div class="stats">
@@ -74,7 +75,7 @@
 
         {% if gap_data.recommendations %}
         <div class="card">
-            <h2>📚 Recommended Courses</h2>
+            <h2>ðŸ“š Recommended Courses</h2>
             <ul class="skill-list">
                 {% for rec in gap_data.recommendations %}
                 <li class="skill-item">
@@ -86,14 +87,14 @@
         </div>
         {% else %}
         <div class="card" style="text-align: center; color: #4caf50;">
-            <h3>🎉 No Skill Gaps Found!</h3>
+            <h3>ðŸŽ‰ No Skill Gaps Found!</h3>
             <p>You have all the skills needed for your recommended career path.</p>
         </div>
         {% endif %}
 
         <div class="card" style="text-align: center;">
-            <a href="{{ url_for('ai_career_recommendation') }}" class="btn">🤖 Career Recommendation</a>
-            <a href="{{ url_for('progress_tracking') }}" class="btn">📈 Track Progress</a>
+            <a href="{{ url_for('ai_career_recommendation') }}" class="btn">ðŸ¤– Career Recommendation</a>
+            <a href="{{ url_for('progress_tracking') }}" class="btn">ðŸ“ˆ Track Progress</a>
         </div>
         {% else %}
         <div class="card empty-state">
@@ -106,3 +107,7 @@
     </div>
 </body>
 </html>
+
+
+
+

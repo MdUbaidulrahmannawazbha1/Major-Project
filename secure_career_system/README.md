@@ -18,6 +18,9 @@ pip install -r requirements.txt
 - `MAIL_USERNAME`, `MAIL_PASSWORD`, `SENDER_EMAIL` (for OTP email)
 - `DATABASE_URI` (optional, defaults to sqlite)
 - `SECRET_FERNET_KEY` (32 url-safe base64 key for Fernet)
+- `APP_ENV` (`development` or `production`)
+- `FLASK_RUN_HOST`, `FLASK_RUN_PORT` (optional runtime settings)
+- `SESSION_COOKIE_SECURE` (`1` in production)
 
 3. Train the model (optional):
 
@@ -34,6 +37,22 @@ python app.py
 Notes:
 - This repository includes basic SHAP explainability endpoints, resume analyzer, and admin/counsellor flows.
 - For production: configure real email provider, HTTPS reverse proxy, secret rotation, and virus scanning for uploads.
+- Operational endpoints are available at `/healthz` (liveness) and `/readyz` (readiness).
+
+Production startup (recommended):
+
+```powershell
+# run with production-safe defaults
+$env:APP_ENV="production"
+$env:FLASK_DEBUG="0"
+python app.py
+```
+
+Important production behavior:
+- App fails fast if `APP_ENV=production` and `SECRET_KEY` is missing.
+- Debug mode is disabled in production unless explicitly overridden.
+- `SESSION_COOKIE_SECURE` defaults to enabled in production.
+- `AUTO_CREATE_DB` defaults to disabled in production (use migrations instead).
  
 CI:
 - A GitHub Actions workflow is included at `.github/workflows/ci.yml` which installs dependencies and runs `pytest` on pushes and pull requests to `main`.
