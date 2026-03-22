@@ -1,51 +1,23 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Career Roadmap</title>
-      <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
-<style>
-    body{font-family:Segoe UI,sans-serif;padding:30px;background:#f5f7fa;}
-    h1{color:#333;margin-bottom:6px;}
-    .subtitle{color:#777;margin-bottom:24px;font-size:14px;}
-    .ai-badge{display:inline-block;background:#667eea;color:#fff;border-radius:12px;padding:3px 12px;font-size:12px;margin-left:10px;vertical-align:middle;}
-    .month-card{background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.07);padding:20px 24px;margin-bottom:18px;border-left:5px solid #667eea;}
-    .month-card h2{color:#667eea;margin-bottom:6px;font-size:18px;}
-    .month-card .milestone{color:#764ba2;font-weight:600;margin-top:10px;}
-    .month-card ul{margin:8px 0 0 18px;color:#444;line-height:1.8;}
-    h2.skill-title{color:#333;margin-top:20px;}
-    ol{background:#fff;padding:16px 16px 16px 36px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.06);color:#444;line-height:1.8;}
-  </style>
+  <title>Learning Roadmap</title>
+  <style>body{font-family:Segoe UI;padding:20px}h2{color:#333}ol{background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.06)}</style>
 </head>
 <body>
-  <h1>Personalized Career Roadmap
-    {% if ai_powered %}<span class="ai-badge">&#129302; AI Generated</span>{% endif %}
-  </h1>
-  {% if career_path %}<p class="subtitle">Tailored for: <strong>{{ career_path }}</strong></p>{% endif %}
-
-  {% if ai_roadmap %}
-    {% for m in ai_roadmap %}
-      <div class="month-card">
-        <h2>Month {{ m.month }}: {{ m.title }}</h2>
-        <ul>
-          {% for task in m.tasks %}<li>{{ task }}</li>{% endfor %}
-        </ul>
-        <p class="milestone">&#127942; Milestone: {{ m.milestone }}</p>
-      </div>
-    {% endfor %}
-  {% elif roadmap %}
+  <h1>Personalized Learning Roadmap</h1>
+  {% if roadmap %}
     {% for skill, courses in roadmap.items() %}
-      <h2 class="skill-title">{{ skill|capitalize }}</h2>
+      <h2>{{ skill|capitalize }}</h2>
       <ol>
-        {% for c in courses %}<li>{{ c }}</li>{% endfor %}
+        {% for c in courses %}
+          <li>{{ c }}</li>
+        {% endfor %}
       </ol>
     {% endfor %}
   {% else %}
-    <p>No roadmap available. Upload your resume or complete an assessment to generate one.</p>
+    <p>No roadmap available.</p>
   {% endif %}
 </body>
 </html>
-
-
-
-

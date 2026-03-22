@@ -1,11 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notifications - Secure Career System</title>
-        <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
-<style>
+    <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
         nav { background: #667eea; color: white; padding: 1rem 2rem; }
@@ -32,7 +31,7 @@
     </nav>
     
     <div class="container">
-        <h1>ðŸ“¬ Notifications <span class="unread-count">{{ unread_count }} Unread</span></h1>
+        <h1>📬 Notifications <span class="unread-count">{{ unread_count }} Unread</span></h1>
         
         {% if notifications %}
             {% for notif in notifications %}
@@ -42,7 +41,7 @@
                         <div class="notif-message">{{ notif.message }}</div>
                         <div class="notif-meta">
                             <span class="notif-type">{{ notif.notification_type }}</span>
-                            â€¢ {{ notif.created_at.strftime('%B %d, %Y %I:%M %p') }}
+                            • {{ notif.created_at.strftime('%B %d, %Y %I:%M %p') }}
                         </div>
                     </div>
                     {% if not notif.is_read %}
@@ -60,7 +59,3 @@
     </div>
 </body>
 </html>
-
-
-
-
