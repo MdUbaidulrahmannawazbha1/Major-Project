@@ -23,28 +23,19 @@ from secure_career_system.extensions import db, login_manager, bcrypt
 from secure_career_system.models import (
     User, StudentProfile, Assessment, Resume, AuditLog, CounsellorNote, Appointment,
     Certification, Notification, CareerRoadmap, JobRecommendation, PortfolioItem,
-    Mentor, MentorshipConnection, SkillProgress, AIResult
+    Mentor, MentorshipConnection, SkillProgress
 )
-from secure_career_system import ai_engine
 from werkzeug.utils import secure_filename
 from flask_talisman import Talisman
-try:
-    from secure_career_system.resume_analyzer import analyze_resume
-    _RESUME_ANALYZER_LOADED = True
-except ImportError:
-    _RESUME_ANALYZER_LOADED = False
-    def analyze_resume(path, education_level=None, career_goal=None):
-        return {"found_skills": [], "skill_gaps": [], "contact_info": {}, "education": [], "roadmap": {}}
+from secure_career_system.resume_analyzer import analyze_resume
 try:
     import shap
 except Exception:
     shap = None
 import os
 import threading
-import time
-import uuid
 from cryptography.fernet import Fernet, InvalidToken
-import secure_career_system.train_model as train_model
+from secure_career_system import train_model
 from flask_migrate import Migrate
 import joblib
 import logging
@@ -55,49 +46,18 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
-
-from secure_career_system import ai_service
-
-# ── Universal Platform Modules ──────────────────────────────────────
-try:
-    from secure_career_system.services import stream_recommender, course_recommender
-    from secure_career_system.services import college_recommender, exam_guidance
-    from secure_career_system.services import learning_engine, career_map as career_map_service
-    from secure_career_system.ai_modules import career_simulator, career_twin, market_analysis
-    from secure_career_system.resume_analyzer import (
-        generate_resume_draft, generate_linkedin_suggestions,
-        generate_portfolio_recommendations, analyze_skill_gap_by_stage
-    )
-    _UNIVERSAL_MODULES_LOADED = True
-except ImportError as _e:
-    _UNIVERSAL_MODULES_LOADED = False
-    logging.warning(f"Universal platform modules not loaded: {_e}")
+load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-APP_ENV = os.getenv('APP_ENV', os.getenv('FLASK_ENV', 'development')).lower()
-IS_PRODUCTION = APP_ENV == 'production'
-
-secret_key = os.getenv('SECRET_KEY')
-if IS_PRODUCTION and not secret_key:
-    raise RuntimeError('SECRET_KEY must be set when APP_ENV=production')
-
-app.secret_key = secret_key or 'dev-secret-key-change-me'
 
 # Database configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'sqlite:///secure_career_system.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = (
-    os.getenv('SESSION_COOKIE_SECURE', '1' if IS_PRODUCTION else '0') == '1'
-)
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(
-    minutes=int(os.getenv('SESSION_TTL_MINUTES', '120'))
-)
-app.config['PREFERRED_URL_SCHEME'] = 'https' if app.config['SESSION_COOKIE_SECURE'] else 'http'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', '0') == '1'
 
 # Initialize extensions
 db.init_app(app)
@@ -137,20 +97,6 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-
-
-def _validate_startup_config():
-    if not IS_PRODUCTION:
-        return
-
-    if app.secret_key == 'dev-secret-key-change-me':
-        raise RuntimeError('Insecure secret key detected in production')
-
-    if not app.config['SESSION_COOKIE_SECURE']:
-        raise RuntimeError('SESSION_COOKIE_SECURE must be enabled in production')
-
-
-_validate_startup_config()
 
 # Load models (trained with `train_model.py`)
 try:
@@ -284,59 +230,6 @@ def send_otp_email(email, otp):
         return False
 
 
-@app.before_request
-def _set_request_context():
-    request.request_id = request.headers.get('X-Request-ID') or str(uuid.uuid4())
-    request.start_time = time.time()
-
-
-@app.after_request
-def _add_request_headers(response):
-    response.headers['X-Request-ID'] = getattr(request, 'request_id', 'unknown')
-    started = getattr(request, 'start_time', None)
-    if started is not None:
-        duration_ms = int((time.time() - started) * 1000)
-        response.headers['X-Response-Time-Ms'] = str(duration_ms)
-    return response
-
-
-@app.errorhandler(404)
-def handle_not_found(error):
-    if request.path.startswith('/api/'):
-        return jsonify({'error': 'not found', 'request_id': getattr(request, 'request_id', None)}), 404
-    return error
-
-
-@app.errorhandler(500)
-def handle_internal_error(error):
-    logging.exception('Unhandled server error')
-    if request.path.startswith('/api/'):
-        return jsonify({'error': 'internal server error', 'request_id': getattr(request, 'request_id', None)}), 500
-    return render_template('login.html', error='Unexpected server error. Please try again.'), 500
-
-
-@app.route('/healthz', methods=['GET'])
-def healthz():
-    return jsonify({'status': 'ok', 'service': 'secure-career-system', 'env': APP_ENV}), 200
-
-
-@app.route('/readyz', methods=['GET'])
-def readyz():
-    checks = {'database': False, 'model_loaded': model is not None}
-    status_code = 200
-    status = 'ready'
-
-    try:
-        db.session.execute(db.text('SELECT 1'))
-        checks['database'] = True
-    except Exception as exc:
-        logging.error(f'Readiness DB check failed: {exc}')
-        status = 'not_ready'
-        status_code = 503
-
-    return jsonify({'status': status, 'checks': checks, 'env': APP_ENV}), status_code
-
-
 @app.route('/')
 def home():
     return redirect(url_for('login'))
@@ -399,20 +292,10 @@ def login():
             email = user.email
             if send_otp_email(email, otp):
                 logging.info(f'OTP generated and sent for user: {username}')
-                return redirect(url_for('verify_otp', username=username))
             else:
-                allow_local_otp = os.getenv('ALLOW_LOCAL_OTP_FALLBACK', '1') == '1'
-                if app.debug and allow_local_otp:
-                    logging.warning(
-                        f'OTP email failed for user {username}; using local fallback OTP: {otp}'
-                    )
-                    return redirect(url_for('verify_otp', username=username))
-
                 logging.warning(f'Failed to send OTP email for user: {username}')
-                return render_template(
-                    'login.html',
-                    error='Unable to send OTP email. Please check email settings and try again.'
-                )
+
+            return redirect(url_for('verify_otp', username=username))
 
         logging.warning(f'Failed login attempt for username: {username}')
         # increment failed login counter
@@ -494,7 +377,6 @@ def assessment():
         primary_path = max(scores, key=scores.get)
         
         # Adjust prediction based on academic history
-        cgpa_normalized = 0.0  # default; overwritten below if cgpa is available
         if cgpa is not None:
             cgpa_normalized = min(max(cgpa / 10.0, 0.0), 1.0)
             # Higher CGPA boosts confidence in the prediction
@@ -553,77 +435,9 @@ def assessment():
             placement_prob=placement_prob
         )
         db.session.add(assessment_record)
-        db.session.flush()  # get assessment_record.id for AI result linkage
         
-        # ---- Central AI Engine Integration ----
-        user_skills_list = [s.strip() for s in skills.split(',') if s.strip()] if skills else []
-
-        ai_career = ai_engine.predict_career(responses, cgpa=cgpa, skills=skills)
-        ai_career_id = ai_career.get('career_id', int(prediction))
-
-        ai_gaps = ai_engine.analyze_skill_gaps(user_skills_list, ai_career_id)
-
-        ai_placement = ai_engine.predict_placement(
-            assessment_score=base_score,
-            cgpa=cgpa if cgpa is not None else 0.0,
-            skills_count=len(user_skills_list),
-        )
-
-        ai_jobs = ai_engine.match_jobs(ai_career_id, user_skills_list)
-        ai_roadmap = ai_engine.generate_roadmap(ai_career_id, user_skills_list)
-
-        # Fetch mentors for matching
-        mentor_list = []
-        for m in Mentor.query.filter(Mentor.availability.in_(['available', 'limited'])).all():
-            mentor_list.append({
-                'user_id': m.user_id,
-                'expertise': m.expertise or '',
-                'availability': m.availability,
-            })
-        ai_mentors = ai_engine.match_mentors(ai_career_id, ai_gaps.get('missing_skills', []), mentor_list)
-
-        # Portfolio feedback
-        portfolio_items = PortfolioItem.query.filter_by(user_id=current_user.id).all()
-        portfolio_data = [
-            {'title': p.title, 'description': p.description, 'skills_used': p.category or '', 'url': p.github_url or p.media_url or ''}
-            for p in portfolio_items
-        ]
-        ai_portfolio = ai_engine.get_portfolio_feedback(portfolio_data, ai_career_id, ai_gaps.get('missing_skills', []))
-
-        # Store consolidated AI result
-        ai_result = AIResult(
-            user_id=current_user.id,
-            assessment_id=assessment_record.id,
-            career_id=ai_career_id,
-            career_name=ai_career.get('career_name', 'Technology'),
-            confidence=ai_career.get('confidence', confidence),
-            domain_scores=json.dumps(ai_career.get('scores', {})),
-            skill_gaps=json.dumps(ai_gaps.get('missing_skills', [])),
-            gap_score=ai_gaps.get('gap_score', 0.0),
-            placement_probability=ai_placement.get('probability', placement_prob),
-            placement_factors=json.dumps(ai_placement.get('factors', {})),
-            job_recommendations=json.dumps(ai_jobs),
-            roadmap_data=json.dumps(ai_roadmap),
-            certification_suggestions=json.dumps(ai_roadmap.get('certifications', [])),
-            mentorship_scores=json.dumps(ai_mentors),
-            portfolio_feedback=json.dumps(ai_portfolio),
-        )
-        db.session.add(ai_result)
-
-        # Update AI-driven job recommendations in DB
-        JobRecommendation.query.filter_by(user_id=current_user.id).delete()
-        for job in ai_jobs[:8]:
-            db.session.add(JobRecommendation(
-                user_id=current_user.id,
-                job_title=job['title'],
-                company=job['company'],
-                description=job.get('description', ''),
-                required_skills=job.get('required_skills', ''),
-                matching_score=round(job.get('matching_score', 0) * 100, 1),
-            ))
-
         # Align roadmap with the newly suggested career path
-        _ensure_user_career_roadmap(current_user.id, ai_career_id)
+        _ensure_user_career_roadmap(current_user.id, int(prediction))
         
         db.session.commit()
 
@@ -631,8 +445,8 @@ def assessment():
         current_user.points = (current_user.points or 0) + 10
         db.session.commit()
 
-        logging.info(f'Assessment completed for user {current_user.username}: Tech={tech_score:.2f}, Finance={finance_score:.2f}, Healthcare={healthcare_score:.2f}, CGPA={cgpa}, Result={prediction}, AI_Career={ai_career_id}')
-        return redirect(url_for('result', result=ai_career_id))
+        logging.info(f'Assessment completed for user {current_user.username}: Tech={tech_score:.2f}, Finance={finance_score:.2f}, Healthcare={healthcare_score:.2f}, CGPA={cgpa}, Result={prediction}')
+        return redirect(url_for('result', result=prediction))
 
     return render_template('assessment.html')
 
@@ -760,63 +574,17 @@ def admin_unlock(user_id):
 @app.route('/api/chatbot', methods=['POST'])
 def api_chatbot():
     data = request.get_json() or {}
-    query = (data.get('query') or '').strip()
-    if not query:
-        return jsonify({'reply': 'Please ask me something about your career!'})  
-
-    # Build user context from profile + latest assessment
-    user_profile = None
-    if current_user.is_authenticated:
-        profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
-        latest_assessment = Assessment.query.filter_by(user_id=current_user.id).order_by(Assessment.created_at.desc()).first()
-        career_map = {'0': 'Technology', '1': 'Finance', '2': 'Healthcare'}
-        user_profile = {
-            'skills': profile.skills if profile else current_user.skills,
-            'cgpa': profile.cgpa if profile else None,
-            'career_path': career_map.get(str(latest_assessment.result), 'Unknown') if latest_assessment else (current_user.career_goal or None),
-            'result': latest_assessment.result if latest_assessment else None,
-            'education_level': current_user.education_level,
-            'career_goal': current_user.career_goal,
-            'interests': current_user.interests,
-            'experience_level': current_user.experience_level,
-        }
-
-    if ai_service.is_available():
-        reply = ai_service.chatbot_response(query, user_profile=user_profile)
-        if reply:
-            return jsonify({'reply': reply, 'ai_powered': True})
-
-    # Fallback heuristic
-    q = query.lower()
+    q = (data.get('query') or '').lower()
     if 'recommend' in q or 'career' in q:
-        skills = (user_profile.get('skills') or '').split(',') if user_profile else []
-        if skills and skills[0]:
-            return jsonify({'reply': f"Based on your skills ({', '.join(skills[:3])}), consider careers in Data, Software Dev or Cloud. Set GROQ_API_KEY for full AI responses."})
-        return jsonify({'reply': 'Add your skills in your profile and I can suggest careers. Set GROQ_API_KEY for AI-powered advice.'})
-    return jsonify({'reply': "I'm your career assistant. Set GROQ_API_KEY in .env for full AI-powered responses!"})
-
-
-@app.route('/api/ai-health', methods=['GET'])
-def api_ai_health():
-    """Lightweight AI diagnostics endpoint without exposing secrets."""
-    provider = 'groq'
-    model = os.getenv('GROQ_MODEL', 'llama-3.1-8b-instant')
-    key_configured = bool(os.getenv('GROQ_API_KEY'))
-    available = ai_service.is_available()
-    status = 'ok' if available else 'degraded'
-
-    return jsonify({
-        'status': status,
-        'provider': provider,
-        'model': model,
-        'key_configured': key_configured,
-        'ai_available': available,
-        'message': (
-            'AI integration is active.'
-            if available
-            else 'AI integration unavailable. Check GROQ_API_KEY and model configuration.'
-        )
-    }), (200 if available else 503)
+        # simple heuristic: use user's latest resume skills or generic suggestions
+        user_id = data.get('user_id')
+        if user_id:
+            profile = StudentProfile.query.filter_by(user_id=user_id).first()
+            skills = (profile.skills or '').split(',') if profile and profile.skills else []
+            if skills:
+                return jsonify({'reply': f'I see skills: {skills[:5]}. Consider careers in Data, Dev or Cloud.'})
+        return jsonify({'reply': 'Provide your resume or skills and I will suggest careers.'})
+    return jsonify({'reply': "I'm a simple assistant. Ask about career recommendations."})
 
 
 @app.route('/admin/analytics')
@@ -851,9 +619,6 @@ def api_predict():
     features = data.get('features')
     if features is None:
         return jsonify({'error': 'features required'}), 400
-
-    if model is None:
-        return jsonify({'error': 'model not loaded'}), 503
 
     try:
         pred = model.predict([features])[0]
@@ -972,63 +737,37 @@ def shap_view():
 @app.route('/api/skill_gap', methods=['POST'])
 def api_skill_gap():
     data = request.get_json() or {}
+    # allow passing resume path or user_id
     resume_path = data.get('resume_path')
     user_id = data.get('user_id')
 
-    path = None
     if resume_path:
-        path = resume_path
-    elif user_id:
+        analysis = analyze_resume(resume_path)
+        return jsonify(analysis)
+
+    if user_id:
         resume = Resume.query.filter_by(user_id=user_id).order_by(Resume.uploaded_at.desc()).first()
         if not resume:
             return jsonify({'error': 'no resume found for user'}), 404
         path = os.path.join(app.config['UPLOAD_FOLDER'], resume.filename)
-    else:
-        return jsonify({'error': 'resume_path or user_id required'}), 400
+        analysis = analyze_resume(path)
+        return jsonify(analysis)
 
-    analysis = analyze_resume(path)
-
-    # Enhance with AI skill-gap analysis if available
-    if ai_service.is_available():
-        latest = Assessment.query.filter_by(user_id=user_id).order_by(Assessment.created_at.desc()).first() if user_id else None
-        career_map = {'0': 'Technology', '1': 'Finance', '2': 'Healthcare'}
-        career_path = career_map.get(str(latest.result), 'Technology') if latest else 'Technology'
-        ai_gaps = ai_service.analyze_skill_gap_ai(analysis.get('found_skills', []), career_path)
-        if ai_gaps:
-            analysis['ai_skill_gaps'] = ai_gaps.get('gaps', [])
-            analysis['ai_powered'] = True
-
-    return jsonify(analysis)
+    return jsonify({'error': 'resume_path or user_id required'}), 400
 
 
 @app.route('/roadmap_view')
 def roadmap_view():
+    # generate roadmap for current user based on latest resume analysis
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
-
-    # Determine career path from latest assessment
-    latest_assessment = Assessment.query.filter_by(user_id=current_user.id).order_by(Assessment.created_at.desc()).first()
-    career_map = {'0': 'Technology', '1': 'Finance', '2': 'Healthcare'}
-    career_path = career_map.get(str(latest_assessment.result), 'Technology') if latest_assessment else 'Technology'
-
-    # Get skills from profile
-    profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
-    skills = profile.skills.split(',') if profile and profile.skills else []
-    cgpa = profile.cgpa if profile else None
-
-    # Try AI roadmap first
-    if ai_service.is_available():
-        ai_roadmap = ai_service.generate_roadmap_ai(career_path, skills, cgpa=cgpa)
-        if ai_roadmap and ai_roadmap.get('months'):
-            return render_template('roadmap.html', ai_roadmap=ai_roadmap['months'], career_path=career_path, ai_powered=True)
-
-    # Fallback: resume-based roadmap
     resume = Resume.query.filter_by(user_id=current_user.id).order_by(Resume.uploaded_at.desc()).first()
     if not resume:
-        return render_template('roadmap.html', roadmap={}, career_path=career_path, ai_powered=False)
+        return render_template('roadmap.html', roadmap={})
     path = os.path.join(app.config['UPLOAD_FOLDER'], resume.filename)
     analysis = analyze_resume(path)
-    return render_template('roadmap.html', roadmap=analysis.get('roadmap', {}), career_path=career_path, ai_powered=False)
+    roadmap = analysis.get('roadmap')
+    return render_template('roadmap.html', roadmap=roadmap)
 
 
 
@@ -1050,16 +789,6 @@ def result(result):
     roadmap, career_path, milestones = _ensure_user_career_roadmap(current_user.id, result)
     db.session.commit()
 
-    # AI-generated personalised explanation
-    ai_explanation = None
-    if ai_service.is_available():
-        profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
-        skills = profile.skills.split(',') if profile and profile.skills else []
-        cgpa = profile.cgpa if profile else None
-        ai_explanation = ai_service.explain_career_result(
-            career_path, confidence or 0.5, skills=skills, cgpa=cgpa
-        )
-
     logging.info(f'User {current_user.username} completed assessment with result: {result}')
     return render_template(
         'result.html',
@@ -1069,8 +798,7 @@ def result(result):
         aid=aid,
         career_path=career_path,
         suggested_roadmap=milestones,
-        current_milestone=(roadmap.current_milestone if roadmap else 0),
-        ai_explanation=ai_explanation,
+        current_milestone=(roadmap.current_milestone if roadmap else 0)
     )
 
 
@@ -1084,39 +812,22 @@ def profile():
         email = (request.form.get('email') or '').strip()
         skills = (request.form.get('skills') or '').strip()
         cgpa_str = (request.form.get('cgpa') or '').strip()
-        education_level = (request.form.get('education_level') or '').strip()
-        career_goal = (request.form.get('career_goal') or '').strip()
-        interests = (request.form.get('interests') or '').strip()
-        experience_level = (request.form.get('experience_level') or '').strip()
-
+        
         current_user.email = email
-
-        # Persist new universal career fields
-        allowed_education = {'School', 'PUC', 'Undergraduate', 'Postgraduate', 'PhD', 'Professional'}
-        if education_level and education_level in allowed_education:
-            current_user.education_level = education_level
-        if career_goal:
-            current_user.career_goal = career_goal
-        if interests:
-            current_user.interests = interests
-        if experience_level:
-            current_user.experience_level = experience_level
-        if skills:
-            current_user.skills = skills
-
+        
         if not profile:
             profile = StudentProfile(user_id=current_user.id, skills=skills)
             db.session.add(profile)
         else:
             profile.skills = skills
-
+        
         # Save CGPA if provided
         if cgpa_str:
             try:
                 profile.cgpa = float(cgpa_str)
             except ValueError:
                 pass
-
+        
         db.session.commit()
         logging.info(f'Profile updated for user: {current_user.username} with CGPA={profile.cgpa}')
         return render_template(
@@ -1260,66 +971,36 @@ def generate_job_recommendations():
         return jsonify({'error': 'Not authenticated'}), 401
     
     profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
-    raw_skills = profile.skills if profile and profile.skills else ''
-    skills = [s.strip() for s in raw_skills.split(',') if s and s.strip()]
-
-    # Fetch user's latest career path
-    latest_assessment = Assessment.query.filter_by(user_id=current_user.id).order_by(Assessment.created_at.desc()).first()
-    career_map = {'0': 'Technology', '1': 'Finance', '2': 'Healthcare'}
-    career_path = career_map.get(str(latest_assessment.result), 'Technology') if latest_assessment else 'Technology'
-    cgpa = profile.cgpa if profile else None
-
-    # Fallback seed skills so recommendations still work for new users.
-    if not skills:
-        default_skill_map = {
-            'Technology': ['Python', 'SQL', 'Git'],
-            'Finance': ['Excel', 'Financial Modeling', 'Power BI'],
-            'Healthcare': ['Patient Care', 'Medical Terminology', 'Communication'],
-        }
-        skills = default_skill_map.get(career_path, ['Communication', 'Problem Solving'])
-
-    # Use AI engine first: get latest AI result for career_id
-    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(AIResult.created_at.desc()).first()
-    career_id = latest_ai.career_id if latest_ai else 0
-    job_data = ai_engine.match_jobs(career_id, skills)
-
-    # Enhance with Groq AI service if available
-    if ai_service.is_available():
-        ai_jobs_enhanced = ai_service.generate_job_recommendations_ai(skills, career_path, cgpa=cgpa)
-        if ai_jobs_enhanced:
-            job_data = [{
-                'title': j.get('title', 'Role'),
-                'company': j.get('company', ''),
-                'required_skills': j.get('required_skills', ''),
-                'matching_score': j.get('match_score', 70) / 100.0,
-            } for j in ai_jobs_enhanced]
-
+    if not profile or not profile.skills:
+        return jsonify({'error': 'Complete your profile with skills first'}), 400
+    
+    skills = profile.skills.split(',')
+    
+    # Default job recommendations based on career path
+    job_data = [
+        {'title': 'Junior Software Developer', 'company': 'Tech Corp', 'skills': 'Python, JavaScript, Git', 'score': 85},
+        {'title': 'Data Analyst', 'company': 'Analytics Inc', 'skills': 'Python, SQL, Excel', 'score': 78},
+        {'title': 'Frontend Developer', 'company': 'Web Solutions', 'skills': 'JavaScript, React, CSS', 'score': 72},
+    ]
+    
     # Clear existing recommendations
     JobRecommendation.query.filter_by(user_id=current_user.id).delete()
-
-    for job in job_data[:8]:
+    
+    for job in job_data:
         recommendation = JobRecommendation(
             user_id=current_user.id,
             job_title=job['title'],
             company=job['company'],
-            description=job.get('description', ''),
-            required_skills=job.get('required_skills', ''),
-            matching_score=round(job.get('matching_score', 0) * 100, 1),
+            required_skills=job['skills'],
+            matching_score=job['score']
         )
         db.session.add(recommendation)
-
+    
     db.session.commit()
     current_user.points = (current_user.points or 0) + 10
     db.session.commit()
-    logging.info(
-        f'Job recommendations generated for user: {current_user.username} '
-        f'(used_fallback_skills={not bool(raw_skills)})'
-    )
-    return jsonify({
-        'status': 'recommendations generated',
-        'count': len(job_data[:8]),
-        'used_fallback_skills': not bool(raw_skills),
-    })
+    logging.info(f'Job recommendations generated for user: {current_user.username}')
+    return jsonify({'status': 'recommendations generated', 'count': len(job_data)})
 
 
 # ==================== FEATURE 5: Portfolio ====================
@@ -1574,7 +1255,7 @@ def progress_tracking():
     avg_score = None
     total_assessments = len(assessments)
     if total_assessments > 0:
-        avg_score = sum(a.score for a in assessments if a.score is not None) / total_assessments
+        avg_score = sum(a.score for a in assessments if a.score) / total_assessments
     
     return render_template(
         'progress_tracking.html',
@@ -1592,10 +1273,7 @@ def add_skill_progress():
         return redirect(url_for('login'))
     
     skill_name = (request.form.get('skill_name') or '').strip()
-    try:
-        proficiency_level = int(request.form.get('proficiency_level', 1))
-    except (ValueError, TypeError):
-        proficiency_level = 1
+    proficiency_level = int(request.form.get('proficiency_level', 1))
     proficiency_level = min(max(proficiency_level, 1), 5)
 
     if not skill_name:
@@ -1685,10 +1363,7 @@ def update_roadmap_milestone():
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
     
-    try:
-        milestone = int(request.form.get('milestone', 0))
-    except (ValueError, TypeError):
-        milestone = 0
+    milestone = int(request.form.get('milestone', 0))
     roadmap = CareerRoadmap.query.filter_by(user_id=current_user.id).first()
     
     if roadmap:
@@ -1698,530 +1373,6 @@ def update_roadmap_milestone():
         logging.info(f'Career roadmap milestone updated for user: {current_user.username}')
     
     return redirect(url_for('career_roadmap'))
-
-
-# ==================== AI Module: Career Recommendation ====================
-@app.route('/ai-career-recommendation')
-def ai_career_recommendation():
-    if not current_user.is_authenticated:
-        return redirect(url_for('login'))
-
-    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(AIResult.created_at.desc()).first()
-
-    career_data = None
-    if latest_ai:
-        career_data = {
-            'career_name': latest_ai.career_name,
-            'career_id': latest_ai.career_id,
-            'confidence': latest_ai.confidence,
-            'domain_scores': json.loads(latest_ai.domain_scores) if latest_ai.domain_scores else {},
-            'created_at': latest_ai.created_at.strftime('%B %d, %Y %I:%M %p') if latest_ai.created_at else '',
-        }
-
-    return render_template('ai_career_recommendation.html', user=current_user.username, career_data=career_data)
-
-
-# ==================== AI Module: Skill Gap Analyzer ====================
-@app.route('/ai-skill-gap')
-def ai_skill_gap():
-    if not current_user.is_authenticated:
-        return redirect(url_for('login'))
-
-    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(AIResult.created_at.desc()).first()
-
-    gap_data = None
-    if latest_ai:
-        missing_skills = json.loads(latest_ai.skill_gaps) if latest_ai.skill_gaps else []
-        # Generate recommendations for each missing skill
-        recommendations = []
-        for skill in missing_skills:
-            course = ai_engine.COURSE_SUGGESTIONS.get(skill, f'Search online courses for {skill}')
-            recommendations.append({'skill': skill, 'course': course})
-
-        gap_data = {
-            'career_name': latest_ai.career_name,
-            'missing_skills': missing_skills,
-            'gap_score': latest_ai.gap_score,
-            'recommendations': recommendations,
-        }
-
-    return render_template('ai_skill_gap.html', user=current_user.username, gap_data=gap_data)
-
-
-# ==================== AI Module: Placement Prediction ====================
-@app.route('/ai-placement-prediction')
-def ai_placement_prediction():
-    if not current_user.is_authenticated:
-        return redirect(url_for('login'))
-
-    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(AIResult.created_at.desc()).first()
-
-    placement_data = None
-    if latest_ai:
-        placement_data = {
-            'probability': latest_ai.placement_probability,
-            'factors': json.loads(latest_ai.placement_factors) if latest_ai.placement_factors else {},
-            'career_name': latest_ai.career_name,
-            'created_at': latest_ai.created_at.strftime('%B %d, %Y %I:%M %p') if latest_ai.created_at else '',
-        }
-
-    return render_template('ai_placement_prediction.html', user=current_user.username, placement_data=placement_data)
-
-
-
-
-
-# ══════════════════════════════════════════════════════════════════════
-#  UNIVERSAL AI CAREER NAVIGATION PLATFORM — NEW ROUTES
-# ══════════════════════════════════════════════════════════════════════
-
-# ── Helper ────────────────────────────────────────────────────────────
-
-def _user_skills_list() -> list:
-    """Return the current user's skills as a list (safe, handles None)."""
-    if not current_user.is_authenticated:
-        return []
-    raw = current_user.skills or ''
-    return [s.strip() for s in raw.split(',') if s.strip()]
-
-
-def _user_interests_list() -> list:
-    """Return the current user's interests as a list."""
-    if not current_user.is_authenticated:
-        return []
-    raw = current_user.interests or ''
-    return [i.strip() for i in raw.split(',') if i.strip()]
-
-
-# ── Profile Update (education level, career goal, interests) ─────────
-
-@app.route('/profile/update-career', methods=['POST'])
-@login_required
-def update_career_profile():
-    """Update the new universal career fields on the User model."""
-    education_level = request.form.get('education_level', '').strip()
-    career_goal = request.form.get('career_goal', '').strip()
-    interests = request.form.get('interests', '').strip()
-    skills = request.form.get('skills', '').strip()
-    experience_level = request.form.get('experience_level', '').strip()
-
-    allowed_education = {'School', 'PUC', 'Undergraduate', 'Postgraduate', 'PhD', 'Professional'}
-    if education_level and education_level not in allowed_education:
-        return jsonify({'error': 'Invalid education_level'}), 400
-
-    user = User.query.get(current_user.id)
-    if education_level:
-        user.education_level = education_level
-    if career_goal:
-        user.career_goal = career_goal
-    if interests:
-        user.interests = interests
-    if skills:
-        user.skills = skills
-    if experience_level:
-        user.experience_level = experience_level
-
-    db.session.commit()
-    return jsonify({'status': 'ok', 'message': 'Career profile updated successfully.'})
-
-
-# ── Feature 1: Stream Recommendation ─────────────────────────────────
-
-@app.route('/api/stream-recommendation', methods=['POST'])
-@login_required
-def api_stream_recommendation():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    data = request.get_json(silent=True) or {}
-    result = stream_recommender.recommend_stream(
-        favorite_subjects=data.get('favorite_subjects', []),
-        interests=data.get('interests', _user_interests_list()),
-        logical_reasoning_score=float(data.get('logical_reasoning_score', 5)),
-        personality_traits=data.get('personality_traits', []),
-    )
-    return jsonify(result)
-
-
-@app.route('/stream-recommendation', methods=['GET'])
-@login_required
-def stream_recommendation_page():
-    return render_template(
-        'stream_recommendation.html',
-        user=current_user.username,
-        education_level=current_user.education_level or 'School',
-    )
-
-
-# ── Feature 2: Course Recommendation ─────────────────────────────────
-
-@app.route('/api/course-recommendation', methods=['POST'])
-@login_required
-def api_course_recommendation():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    data = request.get_json(silent=True) or {}
-    result = course_recommender.recommend_courses(
-        stream=data.get('stream', 'Science'),
-        marks_percentage=float(data.get('marks_percentage', 60)),
-        interests=data.get('interests', _user_interests_list()),
-        skills=data.get('skills', _user_skills_list()),
-    )
-    return jsonify(result)
-
-
-@app.route('/course-recommendation', methods=['GET'])
-@login_required
-def course_recommendation_page():
-    return render_template(
-        'course_recommendation.html',
-        user=current_user.username,
-        education_level=current_user.education_level or 'PUC',
-    )
-
-
-# ── Feature 3: College Recommendation ────────────────────────────────
-
-@app.route('/api/college-recommendation', methods=['POST'])
-@login_required
-def api_college_recommendation():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    data = request.get_json(silent=True) or {}
-    result = college_recommender.recommend_colleges(
-        course=data.get('course', 'B.Tech'),
-        location_preference=data.get('location_preference'),
-        max_fees_per_year=data.get('max_fees_per_year'),
-        college_type=data.get('college_type'),
-    )
-    return jsonify(result)
-
-
-@app.route('/college-recommendation', methods=['GET'])
-@login_required
-def college_recommendation_page():
-    return render_template(
-        'college_recommendation.html',
-        user=current_user.username,
-    )
-
-
-# ── Feature 4: Entrance Exam Guidance ────────────────────────────────
-
-@app.route('/api/exam-guidance', methods=['POST'])
-@login_required
-def api_exam_guidance():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    data = request.get_json(silent=True) or {}
-    career_goal = data.get('career_goal', current_user.career_goal or 'Engineering')
-    result = exam_guidance.get_exam_guidance(
-        career_goal=career_goal,
-        education_level=data.get('education_level', current_user.education_level),
-    )
-    return jsonify(result)
-
-
-@app.route('/exam-guidance', methods=['GET'])
-@login_required
-def exam_guidance_page():
-    career_goal = current_user.career_goal or ''
-    initial_data = None
-    if _UNIVERSAL_MODULES_LOADED and career_goal:
-        initial_data = exam_guidance.get_exam_guidance(
-            career_goal=career_goal,
-            education_level=current_user.education_level,
-        )
-    all_exams = exam_guidance.get_all_exams() if _UNIVERSAL_MODULES_LOADED else []
-    return render_template(
-        'exam_guidance.html',
-        user=current_user.username,
-        career_goal=career_goal,
-        exam_data=initial_data,
-        all_exams=all_exams,
-    )
-
-
-# ── Feature 6 / 7: Career Simulator & Career Twin ────────────────────
-
-@app.route('/api/career-simulation', methods=['POST'])
-@login_required
-def api_career_simulation():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    data = request.get_json(silent=True) or {}
-    result = career_simulator.simulate_career(
-        target_career=data.get('target_career', current_user.career_goal or 'Software Engineer'),
-        education_level=data.get('education_level', current_user.education_level or 'Undergraduate'),
-        current_skills=data.get('skills', _user_skills_list()),
-        starting_point=data.get('starting_point'),
-    )
-    return jsonify(result)
-
-
-@app.route('/career-simulation', methods=['GET'])
-@login_required
-def career_simulation_page():
-    return render_template(
-        'career_simulation.html',
-        user=current_user.username,
-        career_goal=current_user.career_goal or '',
-        education_level=current_user.education_level or 'Undergraduate',
-    )
-
-
-@app.route('/api/career-twin', methods=['POST'])
-@login_required
-def api_career_twin():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    data = request.get_json(silent=True) or {}
-    # Pull latest assessment for domain scores if available
-    latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(
-        AIResult.created_at.desc()
-    ).first()
-    assessment_resp = None
-    if latest_ai and latest_ai.domain_scores:
-        assessment_resp = {'domain_scores': json.loads(latest_ai.domain_scores)}
-
-    result = career_twin.predict_career_twins(
-        skills=data.get('skills', _user_skills_list()),
-        interests=data.get('interests', _user_interests_list()),
-        education_level=data.get('education_level', current_user.education_level or 'Undergraduate'),
-        assessment_responses=assessment_resp,
-        top_n=int(data.get('top_n', 5)),
-    )
-    return jsonify(result)
-
-
-@app.route('/career-twin', methods=['GET'])
-@login_required
-def career_twin_page():
-    skills = _user_skills_list()
-    interests = _user_interests_list()
-    twin_results = None
-    if _UNIVERSAL_MODULES_LOADED and (skills or interests):
-        latest_ai = AIResult.query.filter_by(user_id=current_user.id).order_by(
-            AIResult.created_at.desc()
-        ).first()
-        assessment_resp = None
-        if latest_ai and latest_ai.domain_scores:
-            assessment_resp = {'domain_scores': json.loads(latest_ai.domain_scores)}
-        twin_results = career_twin.predict_career_twins(
-            skills=skills,
-            interests=interests,
-            education_level=current_user.education_level or 'Undergraduate',
-            assessment_responses=assessment_resp,
-        )
-    return render_template(
-        'career_twin.html',
-        user=current_user.username,
-        twin_results=twin_results,
-        education_level=current_user.education_level or 'Undergraduate',
-    )
-
-
-# ── Feature 8: Global Skill Demand ───────────────────────────────────
-
-@app.route('/api/skill-demand', methods=['GET'])
-@login_required
-def api_skill_demand():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    top_n = int(request.args.get('top_n', 10))
-    result = market_analysis.get_full_market_analysis()
-    result['top_skills'] = result['top_skills'][:top_n]
-    return jsonify(result)
-
-
-@app.route('/skill-demand', methods=['GET'])
-@login_required
-def skill_demand_page():
-    market_data = market_analysis.get_full_market_analysis() if _UNIVERSAL_MODULES_LOADED else {}
-    return render_template(
-        'skill_demand.html',
-        user=current_user.username,
-        market_data=market_data,
-    )
-
-
-# ── Feature 9: AI Personal Learning Roadmap ──────────────────────────
-
-@app.route('/api/learning-roadmap', methods=['POST'])
-@login_required
-def api_learning_roadmap():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    data = request.get_json(silent=True) or {}
-    result = learning_engine.generate_learning_roadmap(
-        career_goal=data.get('career_goal', current_user.career_goal or 'Software Engineer'),
-        education_level=data.get('education_level', current_user.education_level or 'Undergraduate'),
-        current_skills=data.get('skills', _user_skills_list()),
-        career_switch_from=data.get('career_switch_from'),
-    )
-    return jsonify(result)
-
-
-@app.route('/learning-roadmap', methods=['GET'])
-@login_required
-def learning_roadmap_page():
-    career_goal = current_user.career_goal or ''
-    roadmap_data = None
-    if _UNIVERSAL_MODULES_LOADED and career_goal:
-        roadmap_data = learning_engine.generate_learning_roadmap(
-            career_goal=career_goal,
-            education_level=current_user.education_level or 'Undergraduate',
-            current_skills=_user_skills_list(),
-        )
-    return render_template(
-        'learning_roadmap.html',
-        user=current_user.username,
-        career_goal=career_goal,
-        roadmap_data=roadmap_data,
-    )
-
-
-# ── Feature 10: Resume / Profile Builder ─────────────────────────────
-
-@app.route('/resume-builder', methods=['GET', 'POST'])
-@login_required
-def resume_builder():
-    resume_draft = None
-    linkedin_tips = None
-    portfolio_tips = None
-
-    if request.method == 'POST':
-        name = request.form.get('name', current_user.username)
-        email = request.form.get('email', current_user.email) if hasattr(current_user, 'email') else ''
-        phone = request.form.get('phone', '')
-        career_goal = request.form.get('career_goal', current_user.career_goal or 'Software Engineer')
-        education_level = request.form.get('education_level', current_user.education_level or 'Undergraduate')
-        skills_raw = request.form.get('skills', current_user.skills or '')
-        skills = [s.strip() for s in skills_raw.split(',') if s.strip()]
-
-        if _UNIVERSAL_MODULES_LOADED:
-            resume_draft = generate_resume_draft(
-                name=name,
-                email=email,
-                phone=phone,
-                education_level=education_level,
-                career_goal=career_goal,
-                skills=skills,
-            )
-            linkedin_tips = generate_linkedin_suggestions(
-                name=name,
-                career_goal=career_goal,
-                skills=skills,
-                education_level=education_level,
-            )
-            portfolio_tips = generate_portfolio_recommendations(
-                career_goal=career_goal,
-                skills=skills,
-                education_level=education_level,
-            )
-
-    return render_template(
-        'resume_builder.html',
-        user=current_user.username,
-        resume_draft=resume_draft,
-        linkedin_tips=linkedin_tips,
-        portfolio_tips=portfolio_tips,
-        career_goal=current_user.career_goal or '',
-        education_level=current_user.education_level or 'Undergraduate',
-        skills=current_user.skills or '',
-    )
-
-
-# ── Feature 11: Career Opportunity Map ───────────────────────────────
-
-@app.route('/career-map', methods=['GET'])
-@login_required
-def career_map_page():
-    career_name = request.args.get('career', current_user.career_goal or '')
-    career_info = None
-    all_careers = []
-    if _UNIVERSAL_MODULES_LOADED:
-        if career_name:
-            career_info = career_map_service.get_career_map(career_name)
-        all_careers = career_map_service.get_all_careers()
-    return render_template(
-        'career_map.html',
-        user=current_user.username,
-        career_info=career_info,
-        all_careers=all_careers,
-        career_name=career_name,
-    )
-
-
-@app.route('/api/career-map', methods=['GET'])
-@login_required
-def api_career_map():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    career_name = request.args.get('career', '')
-    if career_name:
-        result = career_map_service.get_career_map(career_name)
-        if result:
-            return jsonify(result)
-        return jsonify({'error': f'Career not found: {career_name}'}), 404
-    return jsonify({'careers': career_map_service.get_all_careers()})
-
-
-# ── Feature 12: Job + Internship Finder (Extended) ───────────────────
-# (Existing job-recommendations route is kept; this extends the API)
-
-@app.route('/api/internship-finder', methods=['POST'])
-@login_required
-def api_internship_finder():
-    """Return internship, entry-level, freelance opportunities via AI."""
-    if not ai_service.is_available():
-        return jsonify({'error': 'AI service unavailable'}), 503
-    data = request.get_json(silent=True) or {}
-    skills = data.get('skills', _user_skills_list())
-    career_path = data.get('career_path', current_user.career_goal or 'Technology')
-    opportunity_type = data.get('type', 'internship')  # internship, entry-level, freelance, research
-
-    try:
-        jobs = ai_service.generate_job_recommendations_ai(
-            skills=skills,
-            career_path=f"{career_path} ({opportunity_type})",
-            cgpa=0.0,
-        )
-        return jsonify({
-            'opportunity_type': opportunity_type,
-            'career_path': career_path,
-            'opportunities': jobs,
-        })
-    except Exception as exc:
-        logging.error(f"Internship finder error: {exc}")
-        return jsonify({'error': 'Failed to generate opportunities'}), 500
-
-
-# ── Feature 13: Lifelong Learning / Career Switch ────────────────────
-
-@app.route('/career-switch', methods=['GET'])
-@login_required
-def career_switch_page():
-    return render_template(
-        'career_switch.html',
-        user=current_user.username,
-        current_career=current_user.career_goal or '',
-        education_level=current_user.education_level or 'Professional',
-    )
-
-
-@app.route('/api/career-switch-roadmap', methods=['POST'])
-@login_required
-def api_career_switch_roadmap():
-    if not _UNIVERSAL_MODULES_LOADED:
-        return jsonify({'error': 'Service unavailable'}), 503
-    data = request.get_json(silent=True) or {}
-    result = learning_engine.generate_learning_roadmap(
-        career_goal=data.get('target_career', 'AI Engineer'),
-        education_level=current_user.education_level or 'Professional',
-        current_skills=data.get('skills', _user_skills_list()),
-        career_switch_from=data.get('current_career', current_user.career_goal),
-    )
-    return jsonify(result)
 
 
 @app.route('/logout')
@@ -2234,13 +1385,8 @@ def logout():
 
 
 if __name__ == '__main__':
-    # Keep local developer convenience; production should use migrations.
-    auto_create = os.getenv('AUTO_CREATE_DB', '1' if not IS_PRODUCTION else '0') == '1'
-    if auto_create:
-        with app.app_context():
-            db.create_all()
+    # Create database tables if they don't exist
+    with app.app_context():
+        db.create_all()
 
-    debug_mode = (os.getenv('FLASK_DEBUG', '1' if not IS_PRODUCTION else '0') == '1') and not IS_PRODUCTION
-    host = os.getenv('FLASK_RUN_HOST', '127.0.0.1')
-    port = int(os.getenv('FLASK_RUN_PORT', '5000'))
-    app.run(host=host, port=port, debug=debug_mode)
+    app.run(debug=True)
