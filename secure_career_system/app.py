@@ -28,6 +28,7 @@ from secure_career_system.models import (
 from werkzeug.utils import secure_filename
 from flask_talisman import Talisman
 from secure_career_system.resume_analyzer import analyze_resume
+from secure_career_system.ai_assistant import get_reply as ai_get_reply
 try:
     import shap
 except Exception:
@@ -571,20 +572,31 @@ def admin_unlock(user_id):
     return redirect(url_for('admin_users'))
 
 
+@app.route('/ai_assistant')
+@login_required
+def ai_assistant():
+    return render_template('ai_assistant.html')
+
+
 @app.route('/api/chatbot', methods=['POST'])
 def api_chatbot():
     data = request.get_json() or {}
-    q = (data.get('query') or '').lower()
-    if 'recommend' in q or 'career' in q:
-        # simple heuristic: use user's latest resume skills or generic suggestions
-        user_id = data.get('user_id')
-        if user_id:
-            profile = StudentProfile.query.filter_by(user_id=user_id).first()
-            skills = (profile.skills or '').split(',') if profile and profile.skills else []
-            if skills:
-                return jsonify({'reply': f'I see skills: {skills[:5]}. Consider careers in Data, Dev or Cloud.'})
-        return jsonify({'reply': 'Provide your resume or skills and I will suggest careers.'})
-    return jsonify({'reply': "I'm a simple assistant. Ask about career recommendations."})
+    query = data.get('query', '')
+
+    # Gather optional user context for personalised replies
+    user_skills = None
+    career_path = None
+    if current_user.is_authenticated:
+        profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
+        if profile:
+            user_skills = [s.strip() for s in (profile.skills or '').split(',') if s.strip()]
+        latest = Assessment.query.filter_by(user_id=current_user.id).order_by(
+            Assessment.id.desc()).first()
+        if latest:
+            career_path = (latest.result or '').lower()
+
+    reply = ai_get_reply(query, user_skills=user_skills, career_path=career_path)
+    return jsonify({'reply': reply})
 
 
 @app.route('/admin/analytics')
