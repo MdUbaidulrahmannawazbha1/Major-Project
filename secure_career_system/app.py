@@ -28,6 +28,7 @@ from secure_career_system.models import (
 from werkzeug.utils import secure_filename
 from flask_talisman import Talisman
 from secure_career_system.resume_analyzer import analyze_resume
+from secure_career_system.skill_gap_analyzer import analyze_skill_gap
 try:
     import shap
 except Exception:
@@ -148,6 +149,11 @@ ROADMAP_MILESTONES = {
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2 MB
 ALLOWED_EXTENSIONS = {'pdf'}
+
+# Placement feature normalisation limits (must match placement_train.py)
+PLACEMENT_MAX_SKILLS = 10
+PLACEMENT_MAX_PROJECTS = 5
+PLACEMENT_MAX_INTERNSHIPS = 3
 
 
 def allowed_file(filename):
@@ -768,6 +774,168 @@ def roadmap_view():
     analysis = analyze_resume(path)
     roadmap = analysis.get('roadmap')
     return render_template('roadmap.html', roadmap=roadmap)
+
+
+# ==================== AI FEATURE: Career Recommendation ====================
+@app.route('/ai/career-recommend')
+def ai_career_recommend():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+    profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
+    cgpa = profile.cgpa if profile and profile.cgpa else None
+    return render_template(
+        'ai_career_recommend.html',
+        features=FEATURE_NAMES or [],
+        cgpa=cgpa,
+    )
+
+
+@app.route('/api/ai/career-recommend', methods=['POST'])
+def ai_career_recommend_api():
+    """AI Career Recommendation API.
+
+    Accepts feature values (matching the 10 assessment features) and an
+    optional CGPA.  Returns the predicted career path, confidence and
+    feature importance from the trained Random Forest model.
+    """
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.get_json() or {}
+    features = data.get('features')
+    if not features or not isinstance(features, list):
+        return jsonify({'error': 'features list required'}), 400
+
+    if model is None or encoder is None:
+        return jsonify({'error': 'AI model not loaded'}), 500
+
+    try:
+        import numpy as np
+        features_scaled = encoder.transform([features])
+        pred = int(model.predict(features_scaled)[0])
+        probs = model.predict_proba(features_scaled)[0]
+        confidence = float(max(probs))
+
+        career = CAREER_PATHS.get(str(pred), 'Technology')
+
+        # Feature importance
+        fi = {}
+        if hasattr(model, 'feature_importances_') and FEATURE_NAMES:
+            importances = model.feature_importances_
+            if len(FEATURE_NAMES) == len(importances):
+                fi = {n: round(float(v), 4) for n, v in zip(FEATURE_NAMES, importances)}
+
+        return jsonify({
+            'career': career,
+            'prediction': pred,
+            'confidence': round(confidence, 4),
+            'probabilities': {CAREER_PATHS.get(str(i), str(i)): round(float(p), 4) for i, p in enumerate(probs)},
+            'feature_importance': fi,
+        })
+    except Exception as e:
+        logging.error(f'AI career recommend error: {str(e)}')
+        return jsonify({'error': 'prediction failed'}), 500
+
+
+# ==================== AI FEATURE: Skill Gap Analyzer ====================
+@app.route('/ai/skill-gap')
+def ai_skill_gap():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+    profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
+    user_skills = profile.skills if profile and profile.skills else ''
+    return render_template('ai_skill_gap.html', user_skills=user_skills)
+
+
+@app.route('/api/ai/skill-gap', methods=['POST'])
+def ai_skill_gap_api():
+    """AI Skill Gap Analysis API.
+
+    Accepts a career name and comma-separated skills string.  Returns
+    matched skills, missing skills (sorted by importance), match
+    percentage and learning recommendations.
+    """
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.get_json() or {}
+    career = data.get('career', 'Technology')
+    skills_str = data.get('skills', '')
+    skills = [s.strip() for s in skills_str.split(',') if s.strip()]
+
+    if not skills:
+        return jsonify({'error': 'Please provide at least one skill'}), 400
+
+    result = analyze_skill_gap(skills, career)
+    return jsonify(result)
+
+
+# ==================== AI FEATURE: Placement Prediction ====================
+@app.route('/ai/placement-predict')
+def ai_placement_predict():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+    profile = StudentProfile.query.filter_by(user_id=current_user.id).first()
+    cgpa = profile.cgpa if profile and profile.cgpa else None
+    return render_template('ai_placement_predict.html', cgpa=cgpa)
+
+
+@app.route('/api/ai/placement-predict', methods=['POST'])
+def ai_placement_predict_api():
+    """AI Placement Prediction API.
+
+    Accepts CGPA, num_skills, num_projects and num_internships.
+    Returns placement probability using the trained Logistic Regression model.
+    """
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.get_json() or {}
+    cgpa = data.get('cgpa')
+    num_skills = data.get('num_skills', 0)
+    num_projects = data.get('num_projects', 0)
+    num_internships = data.get('num_internships', 0)
+
+    if cgpa is None:
+        return jsonify({'error': 'CGPA is required'}), 400
+
+    try:
+        cgpa = float(cgpa)
+        num_skills = int(num_skills)
+        num_projects = int(num_projects)
+        num_internships = int(num_internships)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid input values'}), 400
+
+    # Normalise inputs to match training data scale
+    cgpa_norm = min(max(cgpa / 10.0, 0.0), 1.0)
+    skills_norm = min(num_skills / PLACEMENT_MAX_SKILLS, 1.0)
+    projects_norm = min(num_projects / PLACEMENT_MAX_PROJECTS, 1.0)
+    internships_norm = min(num_internships / PLACEMENT_MAX_INTERNSHIPS, 1.0)
+
+    # Use latest assessment score if available, else estimate from CGPA
+    latest_assessment = Assessment.query.filter_by(
+        user_id=current_user.id
+    ).order_by(Assessment.created_at.desc()).first()
+    if latest_assessment and latest_assessment.score is not None:
+        assessment_score = min(latest_assessment.score / 5.0, 1.0)
+    else:
+        assessment_score = cgpa_norm * 0.8
+
+    if placement_model is None or placement_scaler is None:
+        # Heuristic fallback
+        prob = 0.3 * cgpa_norm + 0.2 * skills_norm + 0.15 * projects_norm + 0.2 * internships_norm + 0.15 * assessment_score
+        return jsonify({'probability': round(float(prob), 4), 'model': 'heuristic'})
+
+    try:
+        import numpy as np
+        Xp = [[cgpa_norm, skills_norm, projects_norm, internships_norm, assessment_score]]
+        Xps = placement_scaler.transform(Xp)
+        prob = float(placement_model.predict_proba(Xps)[0][1])
+        return jsonify({'probability': round(prob, 4), 'model': 'logistic_regression'})
+    except Exception as e:
+        logging.error(f'Placement predict error: {str(e)}')
+        return jsonify({'error': 'prediction failed'}), 500
 
 
 
